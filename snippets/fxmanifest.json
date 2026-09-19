@@ -1,0 +1,47 @@
+{
+  "Qbox fxmanifest": {
+    "prefix": ["fxmanifest", "manifest"],
+    "description": "A complete fxmanifest.lua for a Qbox resource",
+    "body": [
+      "fx_version 'cerulean'",
+      "game 'gta5'",
+      "lua54 'yes'",
+      "use_experimental_fxv2_oal 'yes'",
+      "",
+      "name '${1:${TM_DIRECTORY/.*[\\/\\\\]//}}'",
+      "description '${2}'",
+      "version '${3:1.0.0}'",
+      "",
+      "shared_scripts {",
+      "\t'@ox_lib/init.lua',",
+      "\t'@qbx_core/modules/lib.lua',",
+      "}",
+      "",
+      "client_scripts {",
+      "\t'@qbx_core/modules/playerdata.lua',",
+      "\t'client/*.lua',",
+      "}",
+      "",
+      "server_scripts {",
+      "\t'@oxmysql/lib/MySQL.lua',",
+      "\t'server/*.lua',",
+      "}",
+      "",
+      "files {",
+      "\t'config/client.lua',",
+      "\t'locales/*.json',",
+      "}",
+      "",
+      "dependencies {",
+      "\t'ox_lib',",
+      "\t'qbx_core',",
+      "}",
+      "$0"
+    ]
+  },
+  "Qbox config module": {
+    "prefix": "qbxconfig",
+    "description": "A config file returned as a module (loaded with require)",
+    "body": ["return {", "\t${1:key} = ${2:value},", "}"]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "scopeName": "cfxlua.injection",
+  "injectionSelector": "L:source.lua -comment -string",
+  "patterns": [
+    { "include": "#c-block-comment" },
+    { "include": "#jenkins-hash" },
+    { "include": "#safe-navigation" },
+    { "include": "#compound-assignment" },
+    { "include": "#not-equal" }
+  ],
+  "repository": {
+    "c-block-comment": {
+      "name": "comment.block.cfxlua",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.cfxlua" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.comment.end.cfxlua" } }
+    },
+    "jenkins-hash": {
+      "name": "constant.numeric.hash.cfxlua",
+      "match": "(`)([^`\\n]*)(`)",
+      "captures": {
+        "1": { "name": "punctuation.definition.hash.begin.cfxlua" },
+        "2": { "name": "string.other.hash.cfxlua" },
+        "3": { "name": "punctuation.definition.hash.end.cfxlua" }
+      }
+    },
+    "safe-navigation": {
+      "name": "keyword.operator.safe-navigation.cfxlua",
+      "match": "\\?(?=[.\\[:])"
+    },
+    "compound-assignment": {
+      "name": "keyword.operator.assignment.compound.cfxlua",
+      "match": "(\\+|-|\\*|//|/|%|\\^|&|\\||<<|>>|\\.\\.)="
+    },
+    "not-equal": {
+      "name": "keyword.operator.comparison.cfxlua",
+      "match": "!="
+    }
+  }
+}

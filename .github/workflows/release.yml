@@ -1,0 +1,42 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rust: x86_64-pc-windows-msvc, vsce: win32-x64, folder: win32-x64, bin: qbx-lua-ls.exe }
+          - { os: ubuntu-latest, rust: x86_64-unknown-linux-gnu, vsce: linux-x64, folder: linux-x64, bin: qbx-lua-ls }
+          - { os: macos-latest, rust: aarch64-apple-darwin, vsce: darwin-arm64, folder: darwin-arm64, bin: qbx-lua-ls }
+          - { os: macos-13, rust: x86_64-apple-darwin, vsce: darwin-x64, folder: darwin-x64, bin: qbx-lua-ls }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Qbox-project/qbx-lint
+          path: deps/qbx-lint
+      - uses: actions/checkout@v4
+        with:
+          repository: Qbox-project/qbx-lua-ls
+          path: deps/qbx-lua-ls
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust }}
+      - run: cargo build --release --target ${{ matrix.rust }}
+        working-directory: deps/qbx-lua-ls
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/copy-server.mjs deps/qbx-lua-ls/target/${{ matrix.rust }}/release/${{ matrix.bin }}
+      - run: npx vsce package --no-dependencies --target ${{ matrix.vsce }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.vsce }}
+          path: "*.vsix"

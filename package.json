@@ -1,0 +1,192 @@
+{
+  "name": "qbx-lua",
+  "displayName": "Qbox Lua (FiveM)",
+  "description": "FiveM Lua language support powered by qbx-lua-ls: natives, fxmanifest-aware globals, ox_lib/qbx_core typings, linting and quick fixes with a tiny memory footprint.",
+  "version": "0.1.0",
+  "publisher": "qbox",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Qbox-project/qbx-vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "fivem",
+    "lua",
+    "cfx",
+    "qbox",
+    "qbx",
+    "ox_lib",
+    "natives"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:lua",
+    "workspaceContains:**/fxmanifest.lua"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Qbox Lua",
+      "properties": {
+        "qbxLua.server.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Absolute path to a `qbx-lua-ls` binary. Leave empty to use the one bundled with the extension."
+        },
+        "qbxLua.library": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "Extra folders to index for definitions, for example a `resources` folder that contains `ox_lib` and `qbx_core` when you only open a single resource. Resources referenced from `fxmanifest.lua` that sit next to the open one are found automatically."
+        },
+        "qbxLua.diagnostics.enable": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Show qbx-lint diagnostics while editing."
+        },
+        "qbxLua.diagnostics.rules": {
+          "type": "object",
+          "default": {},
+          "scope": "resource",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "off",
+              "hint",
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "markdownDescription": "Override rule levels, e.g. `{ \"unused-argument\": \"off\", \"fivem/citizen-prefix\": \"warning\" }`. A `qbxlint.toml` in the workspace is honoured as well, so the editor and CI stay in sync."
+        },
+        "qbxLua.inlayHints.enable": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Show parameter names next to literal arguments."
+        },
+        "qbxLua.semanticTokens.enable": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Colour natives, globals, parameters and methods semantically."
+        },
+        "qbxLua.warnAboutOtherLuaExtensions": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Warn when another Lua language server extension is active, which leads to duplicate diagnostics and completions."
+        },
+        "qbxLua.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "scope": "window",
+          "description": "Trace the communication between VS Code and the language server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "qbxLua.restartServer",
+        "title": "Restart Language Server",
+        "category": "Qbox Lua"
+      },
+      {
+        "command": "qbxLua.reindex",
+        "title": "Reindex Workspace",
+        "category": "Qbox Lua"
+      },
+      {
+        "command": "qbxLua.showStatus",
+        "title": "Show Status",
+        "category": "Qbox Lua"
+      },
+      {
+        "command": "qbxLua.showOutput",
+        "title": "Show Output",
+        "category": "Qbox Lua"
+      }
+    ],
+    "grammars": [
+      {
+        "scopeName": "cfxlua.injection",
+        "path": "./syntaxes/cfxlua.injection.json",
+        "injectTo": [
+          "source.lua"
+        ]
+      },
+      {
+        "scopeName": "luacats.injection",
+        "path": "./syntaxes/luacats.injection.json",
+        "injectTo": [
+          "source.lua"
+        ]
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lua",
+        "path": "./snippets/fxmanifest.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[lua]": {
+        "editor.semanticHighlighting.enabled": true
+      }
+    },
+    "semanticTokenScopes": [
+      {
+        "language": "lua",
+        "scopes": {
+          "function.defaultLibrary": [
+            "support.function.native.lua"
+          ],
+          "namespace.defaultLibrary": [
+            "support.class.library.lua"
+          ],
+          "variable.static": [
+            "variable.other.global.lua"
+          ]
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "server": "node scripts/copy-server.mjs",
+    "test": "npm run build && node scripts/run-tests.mjs",
+    "package": "npm run typecheck && npm run build -- --production && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build -- --production"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "scopeName": "luacats.injection",
+  "injectionSelector": "L:comment.line.double-dash.lua",
+  "patterns": [
+    { "include": "#tagged-name" },
+    { "include": "#tag" },
+    { "include": "#union-member" }
+  ],
+  "repository": {
+    "tagged-name": {
+      "match": "(?<=---)\\s*(@(?:param|field|class|alias|enum|generic))\\s+(?:(public|private|protected|package)\\s+)?([A-Za-z_][\\w.\\-]*|\\.\\.\\.)(\\??)",
+      "captures": {
+        "1": { "name": "storage.type.annotation.luacats" },
+        "2": { "name": "storage.modifier.luacats" },
+        "3": { "name": "variable.parameter.luacats" },
+        "4": { "name": "keyword.operator.optional.luacats" }
+      }
+    },
+    "tag": {
+      "match": "(?<=---)\\s*(@[a-zA-Z]+)",
+      "captures": { "1": { "name": "storage.type.annotation.luacats" } }
+    },
+    "union-member": {
+      "match": "(?<=---)\\s*(\\|)\\s*(['\"][^'\"]*['\"])?",
+      "captures": {
+        "1": { "name": "keyword.operator.union.luacats" },
+        "2": { "name": "string.quoted.luacats" }
+      }
+    }
+  }
+}
