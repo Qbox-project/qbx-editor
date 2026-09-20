@@ -36,7 +36,9 @@ type checking than this server does, so the comparison is about cost, not featur
   `TriggerEvent('…')`, `require` paths, table fields expected by a call (`lib.notify({ | })`),
   LuaCATS tags and types, and `fxmanifest.lua` directives and paths.
 - **Hover** with signatures, LuaCATS documentation, native documentation and examples, the side a
-  native runs on, and where an event is handled.
+  native runs on, and where an event is handled. Tables show an overview of their fields with
+  types and values, limited to what is in scope: hovering `Config` shows this resource's `Config`,
+  not every `Config` in the workspace.
 - **Go to definition / references / rename** across files for locals, globals, fields and
   methods, including `require` targets, event registrations, exports of other resources and
   locale keys (jumps into `locales/en.json`).
