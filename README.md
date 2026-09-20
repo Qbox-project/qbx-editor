@@ -37,8 +37,18 @@ type checking than this server does, so the comparison is about cost, not featur
   LuaCATS tags and types, and `fxmanifest.lua` directives and paths.
 - **Hover** with signatures, LuaCATS documentation, native documentation and examples, the side a
   native runs on, and where an event is handled.
-- **Go to definition / references / rename** across files, including `require` targets, event
-  registrations and exports of other resources.
+- **Go to definition / references / rename** across files for locals, globals, fields and
+  methods, including `require` targets, event registrations, exports of other resources and
+  locale keys (jumps into `locales/en.json`).
+- **Formatter** (Format Document / format on save). Conservative about style, and it re-checks its
+  own output: the formatted file must contain exactly the same tokens and comments or it is left
+  alone. Configure it with a `[format]` table in `qbxlint.toml`.
+- **Cross-file checks**: events triggered with more arguments than the handler takes or towards
+  the wrong side, export calls that do not match the export, server handlers that trust
+  client-sent ids or pass unchecked client values into money/item/command calls, SQL built by
+  concatenation, unknown and unused locale keys, exports used without a `dependency`.
+- **Project knowledge in completion**: locale keys with their text, convars from code and
+  `.cfg` files, state bag keys.
 - **Signature help** and **inlay parameter hints**.
 - **Diagnostics and quick fixes** from [`qbx-lint`](../qbx-lint): undefined globals resolved
   through the manifest, client natives used on the server, loops without `Wait`, `source` read

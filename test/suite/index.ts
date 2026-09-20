@@ -111,6 +111,30 @@ const tests: Test[] = [
         },
     ],
     [
+        'formats a document and reports cross-file problems',
+        async () => {
+            const uri = workspaceFile('shop/client.lua');
+            const document = await vscode.workspace.openTextDocument(uri);
+            const edits = await vscode.commands.executeCommand<vscode.TextEdit[] | undefined>(
+                'vscode.executeFormatDocumentProvider',
+                uri,
+                { tabSize: 4, insertSpaces: true },
+            );
+            assert.deepEqual(edits ?? [], [], `${document.fileName} is already formatted`);
+
+            const diagnostics = await waitFor('shop diagnostics', () => {
+                const found = vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'qbx-lint');
+                return found.length > 0 ? found : undefined;
+            });
+            const codes = diagnostics.map((d) => String(typeof d.code === 'object' ? d.code.value : d.code));
+            for (const expected of ['fivem/event-argument-count', 'fivem/event-wrong-side', 'qbox/unknown-locale-key']) {
+                assert.ok(codes.includes(expected), `${expected} missing from ${codes.join(', ')}`);
+            }
+            const locale = vscode.languages.getDiagnostics(workspaceFile('shop/locales/en.json'));
+            assert.ok(locale.some((d) => d.message.includes('never_used')), 'unused locale keys are reported on the JSON file');
+        },
+    ],
+    [
         'go to definition crosses resources',
         async () => {
             const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));

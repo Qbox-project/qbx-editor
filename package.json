@@ -155,7 +155,8 @@
     ],
     "configurationDefaults": {
       "[lua]": {
-        "editor.semanticHighlighting.enabled": true
+        "editor.semanticHighlighting.enabled": true,
+        "editor.defaultFormatter": "qbox.qbx-lua"
       }
     },
     "semanticTokenScopes": [
