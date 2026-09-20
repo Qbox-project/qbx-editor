@@ -52,6 +52,17 @@ const tests: Test[] = [
         },
     ],
     [
+        'problems are reported for files that were never opened',
+        async () => {
+            const uri = workspaceFile('myresource/server/main.lua');
+            const diagnostics = await waitFor('workspace diagnostics', () => {
+                const found = vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'qbx-lint');
+                return found.length > 0 ? found : undefined;
+            });
+            assert.equal(diagnostics[0].severity, vscode.DiagnosticSeverity.Warning);
+        },
+    ],
+    [
         'hover shows documentation from another resource',
         async () => {
             const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));

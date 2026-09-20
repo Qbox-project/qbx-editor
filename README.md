@@ -47,7 +47,13 @@ type checking than this server does, so the comparison is about cost, not featur
 - **CfxLua syntax**: `` `hash` `` literals, `a?.b`, `+=` and friends, `/* */` comments, plus
   highlighting for LuaCATS annotations.
 - **Outline** that includes event handlers, threads, commands and exports.
-- An `fxmanifest` snippet for Qbox resources.
+- **Problems panel for the whole workspace**, not only for open files
+  (`qbxLua.diagnostics.workspace`).
+- **Client/server awareness**: the status bar shows which side the active file runs on according
+  to `fxmanifest.lua`; natives, globals and event names are filtered accordingly.
+- **Snippets**: `CreateThread`, thread loop, `RegisterNetEvent`, `AddEventHandler`,
+  `RegisterCommand`, `lib.callback.register`, `lib.callback.await`, `onCache` (with a pick list of
+  the cache keys your ox_lib version really has), loops, functions, `fxmanifest`, `qbxconfig`.
 
 Type information comes from LuaCATS annotations, so ox_lib, qbx_core and any other annotated
 resource light up automatically when they are in the workspace, next to the opened resource, or in
@@ -60,6 +66,7 @@ resource light up automatically when they are in the workspace, next to the open
 | `qbxLua.server.path` | bundled | Path to a custom `qbx-lua-ls` binary. |
 | `qbxLua.library` | `[]` | Extra folders to index (for example your server's `resources`). |
 | `qbxLua.diagnostics.enable` | `true` | Toggle diagnostics. |
+| `qbxLua.diagnostics.workspace` | `true` | Report problems for files that are not open. |
 | `qbxLua.diagnostics.rules` | `{}` | Per-rule levels; a `qbxlint.toml` in the workspace also applies. |
 | `qbxLua.inlayHints.enable` | `true` | Parameter name hints for literal arguments. |
 | `qbxLua.semanticTokens.enable` | `true` | Semantic highlighting. |

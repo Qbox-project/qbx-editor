@@ -10,6 +10,11 @@ interface ServerStatus {
     natives: number;
 }
 
+interface FileInfo {
+    side: string;
+    resource: string | null;
+}
+
 const CONFIG_SECTION = 'qbxLua';
 const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ihyajb.qbcore-code-snippets-for-lua'];
 
@@ -34,7 +39,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 void restart(context);
             }
         }),
-        vscode.window.onDidChangeActiveTextEditor(updateStatusVisibility),
+        vscode.window.onDidChangeActiveTextEditor(() => {
+            updateStatusVisibility();
+            void refreshStatus();
+        }),
+        vscode.workspace.onDidSaveTextDocument((document) => {
+            if (document.fileName.endsWith('fxmanifest.lua')) {
+                void refreshStatus();
+            }
+        }),
     );
 
     await start(context);
@@ -74,6 +87,7 @@ function serverSettings(): Record<string, unknown> {
         library: config.get<string[]>('library', []),
         diagnostics: {
             enable: config.get<boolean>('diagnostics.enable', true),
+            workspace: config.get<boolean>('diagnostics.workspace', true),
             rules: config.get<Record<string, string>>('diagnostics.rules', {}),
         },
         inlayHints: { enable: config.get<boolean>('inlayHints.enable', true) },
@@ -152,14 +166,37 @@ function updateStatusVisibility(): void {
     }
 }
 
+const SIDE_LABELS: Record<string, [icon: string, explanation: string]> = {
+    client: ['$(device-desktop)', 'runs on the client: client and shared natives and globals are offered'],
+    server: ['$(server)', 'runs on the server: server and shared natives and globals are offered'],
+    shared: ['$(arrow-swap)', 'loaded on both sides: only what exists on both is safe to use'],
+    module: ['$(package)', 'not listed as a script in fxmanifest.lua (loaded through require or lib.load), so it is treated as running on either side'],
+    manifest: ['$(list-unordered)', 'resource manifest'],
+    standalone: ['$(file)', 'no fxmanifest.lua found above this file, so it is checked on its own'],
+};
+
+async function fetchFileInfo(): Promise<FileInfo | undefined> {
+    const document = vscode.window.activeTextEditor?.document;
+    if (!client || client.state !== State.Running || document?.languageId !== 'lua' || document.uri.scheme !== 'file') {
+        return undefined;
+    }
+    return client.sendRequest<FileInfo>('qbx/fileInfo', { uri: document.uri.toString() });
+}
+
 async function refreshStatus(): Promise<void> {
     const status = await fetchStatus().catch(() => undefined);
-    if (status) {
-        setStatus(
-            '$(check) Qbox Lua',
-            `${status.files} files in ${status.resources} resources indexed · ${status.natives} natives`,
-        );
+    if (!status) {
+        return;
     }
+    const info = await fetchFileInfo().catch(() => undefined);
+    const indexed = `${status.files} files in ${status.resources} resources indexed · ${status.natives} natives`;
+    if (!info) {
+        setStatus('$(check) Qbox Lua', indexed);
+        return;
+    }
+    const [icon, explanation] = SIDE_LABELS[info.side] ?? ['$(check)', ''];
+    const resource = info.resource ? `${info.resource} · ` : '';
+    setStatus(`${icon} ${info.side}`, `Qbox Lua · ${resource}${info.side}: ${explanation}\n${indexed}`);
 }
 
 async function reindex(): Promise<void> {

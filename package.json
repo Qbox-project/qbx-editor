@@ -56,6 +56,12 @@
           "scope": "resource",
           "description": "Show qbx-lint diagnostics while editing."
         },
+        "qbxLua.diagnostics.workspace": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Report problems for every Lua file in the workspace in the Problems panel, not only for the files that are open."
+        },
         "qbxLua.diagnostics.rules": {
           "type": "object",
           "default": {},
