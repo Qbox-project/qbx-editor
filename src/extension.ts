@@ -31,6 +31,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(
         vscode.commands.registerCommand('qbxLua.restartServer', () => restart(context)),
         vscode.commands.registerCommand('qbxLua.reindex', reindex),
+        vscode.commands.registerCommand('qbxLua.showSnippets', showSnippets),
         vscode.commands.registerCommand('qbxLua.showStatus', showStatus),
         vscode.commands.registerCommand('qbxLua.showOutput', () => output.show()),
         vscode.workspace.onDidChangeConfiguration((event) => {
@@ -210,6 +211,41 @@ async function reindex(): Promise<void> {
     void vscode.window.showInformationMessage(
         `Qbox Lua indexed ${result.files} files in ${result.resources} resources (${result.millis} ms).`,
     );
+}
+
+interface ServerSnippet {
+    label: string;
+    description: string;
+    body: string;
+    preview: string;
+}
+
+async function showSnippets(): Promise<void> {
+    if (!client || client.state !== State.Running) {
+        void vscode.window.showWarningMessage('The Qbox Lua language server is not running.');
+        return;
+    }
+    const editor = vscode.window.activeTextEditor;
+    const isLua = editor?.document.languageId === 'lua';
+    const params = isLua && editor ? { uri: editor.document.uri.toString() } : null;
+    const snippets = await client.sendRequest<ServerSnippet[]>('qbx/snippets', params);
+    const picked = await vscode.window.showQuickPick(
+        snippets.map((snippet) => ({
+            label: snippet.label,
+            description: snippet.description,
+            detail: snippet.preview.replace(/\s*\n\s*/g, ' ⏎ '),
+            snippet,
+        })),
+        {
+            title: 'Qbox Lua snippets',
+            placeHolder: isLua ? 'Type the name in a Lua file to get these as suggestions; pick one to insert it now' : 'Open a Lua file to insert a snippet',
+            matchOnDescription: true,
+            matchOnDetail: true,
+        },
+    );
+    if (picked && isLua && editor) {
+        await editor.insertSnippet(new vscode.SnippetString(picked.snippet.body));
+    }
 }
 
 async function showStatus(): Promise<void> {

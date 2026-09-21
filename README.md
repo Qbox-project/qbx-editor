@@ -63,7 +63,10 @@ type checking than this server does, so the comparison is about cost, not featur
   (`qbxLua.diagnostics.workspace`).
 - **Client/server awareness**: the status bar shows which side the active file runs on according
   to `fxmanifest.lua`; natives, globals and event names are filtered accordingly.
-- **Snippets**: just start typing the name; snippets are marked `snippet` in the list and sort
+- **Event parameters**: inside `TriggerServerEvent('resource:event', ` the signature popup and the
+  inlay hints show what the registered handler expects, not the native's `...: any`.
+- **Snippets**: run **Qbox Lua: Show Snippets** for the full list (picking one inserts it), or just
+  start typing the name; snippets are marked `snippet` in the list and sort
   above the plain function of the same name. `CreateThread` / `thread` (a `while true` loop with
   `Wait(0)`), `CreateThread once`, `SetTimeout`, `RegisterNetEvent`, `AddEventHandler`,
   `RegisterCommand`, `lib.callback.register`, `lib.callback.await`, loops, functions,

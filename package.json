@@ -116,6 +116,11 @@
         "category": "Qbox Lua"
       },
       {
+        "command": "qbxLua.showSnippets",
+        "title": "Show Snippets",
+        "category": "Qbox Lua"
+      },
+      {
         "command": "qbxLua.reindex",
         "title": "Reindex Workspace",
         "category": "Qbox Lua"

@@ -46,7 +46,7 @@ const tests: Test[] = [
             await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua')).then((doc) => vscode.window.showTextDocument(doc));
             await waitFor('activation', () => (extension.isActive ? true : undefined));
             const commands = await vscode.commands.getCommands(true);
-            for (const command of ['qbxLua.restartServer', 'qbxLua.reindex', 'qbxLua.showStatus', 'qbxLua.showOutput']) {
+            for (const command of ['qbxLua.restartServer', 'qbxLua.reindex', 'qbxLua.showStatus', 'qbxLua.showOutput', 'qbxLua.showSnippets']) {
                 assert.ok(commands.includes(command), `${command} should be registered`);
             }
         },
@@ -112,7 +112,7 @@ const tests: Test[] = [
                         document.uri,
                         document.positionAt(document.getText().length),
                     );
-                    const found = list.items.filter((item) => item.kind === vscode.CompletionItemKind.Snippet);
+                    const found = list.items.filter((item) => typeof item.label !== 'string' && item.label.description === 'snippet');
                     const labels = found.map((item) => (typeof item.label === 'string' ? item.label : item.label.label));
                     assert.ok(labels.includes(label), `${typed}: ${labels.join(', ') || 'no snippets'} of ${list.items.length} items`);
                 }
