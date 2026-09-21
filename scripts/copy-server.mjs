@@ -1,14 +1,22 @@
-// Copies a locally built qbx-lua-ls into server/<platform>-<arch>/ so it gets bundled into the .vsix.
-// usage: node scripts/copy-server.mjs [path-to-binary]
+// Builds the sibling qbx-lua-ls checkout in release mode and copies it into server/<platform>-<arch>/ so it gets bundled into the .vsix.
+// usage: node scripts/copy-server.mjs [path-to-prebuilt-binary]
+import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const name = process.platform === 'win32' ? 'qbx-lua-ls.exe' : 'qbx-lua-ls';
-const source = resolve(process.argv[2] ?? join(root, '..', 'qbx-lua-ls', 'target', 'release', name));
+const checkout = join(root, '..', 'qbx-lua-ls');
+const source = resolve(process.argv[2] ?? join(checkout, 'target', 'release', name));
+if (!process.argv[2] && existsSync(join(checkout, 'Cargo.toml'))) {
+    const build = spawnSync('cargo', ['build', '--release'], { cwd: checkout, stdio: 'inherit' });
+    if (build.status !== 0) {
+        process.exit(build.status ?? 1);
+    }
+}
 if (!existsSync(source)) {
-    console.error(`no server binary at ${source}; build it with "cargo build --release" in qbx-lua-ls first`);
+    console.error(`no server binary at ${source}`);
     process.exit(1);
 }
 const folder = join(root, 'server', `${process.platform}-${process.arch}`);
