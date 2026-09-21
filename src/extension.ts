@@ -16,7 +16,7 @@ interface FileInfo {
 }
 
 const CONFIG_SECTION = 'qbxLua';
-const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ihyajb.qbcore-code-snippets-for-lua'];
+const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ihyajb.qbcore-code-snippets'];
 
 let client: LanguageClient | undefined;
 let statusItem: vscode.StatusBarItem;
@@ -246,7 +246,7 @@ function warnAboutOtherLuaExtensions(): void {
     }
     void vscode.window
         .showWarningMessage(
-            `Qbox Lua replaces ${active.join(', ')}. Running them side by side duplicates diagnostics and completions, and keeps LuaLS' memory usage. Disable them for this workspace?`,
+            `Qbox Lua replaces ${active.join(', ')}. Running them side by side duplicates diagnostics, delays or hides the completion list (VS Code waits for every provider) and keeps LuaLS' memory usage. Disable them for this workspace?`,
             'Show Extensions',
             "Don't Show Again",
         )

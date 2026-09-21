@@ -63,9 +63,16 @@ type checking than this server does, so the comparison is about cost, not featur
   (`qbxLua.diagnostics.workspace`).
 - **Client/server awareness**: the status bar shows which side the active file runs on according
   to `fxmanifest.lua`; natives, globals and event names are filtered accordingly.
-- **Snippets**: `CreateThread`, thread loop, `RegisterNetEvent`, `AddEventHandler`,
-  `RegisterCommand`, `lib.callback.register`, `lib.callback.await`, `onCache` (with a pick list of
-  the cache keys your ox_lib version really has), loops, functions, `fxmanifest`, `qbxconfig`.
+- **Snippets**: just start typing the name; snippets are marked `snippet` in the list and sort
+  above the plain function of the same name. `CreateThread` / `thread` (a `while true` loop with
+  `Wait(0)`), `CreateThread once`, `SetTimeout`, `RegisterNetEvent`, `AddEventHandler`,
+  `RegisterCommand`, `lib.callback.register`, `lib.callback.await`, loops, functions,
+  `fxmanifest`, `qbxconfig`. `oncache` (or `lib.onCache`) inserts `lib.onCache('…', function…)`
+  with a pick list of the cache keys your ox_lib version really has, or the usual ones when ox_lib
+  is not in the workspace.
+
+If the suggestion list stays empty or slow, check that `sumneko.lua` and `cfxlua-vscode` are
+disabled for the workspace: VS Code waits for every completion provider before showing anything.
 
 Type information comes from LuaCATS annotations, so ox_lib, qbx_core and any other annotated
 resource light up automatically when they are in the workspace, next to the opened resource, or in

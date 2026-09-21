@@ -98,6 +98,32 @@ const tests: Test[] = [
         },
     ],
     [
+        'snippets are offered while typing a statement',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const editor = await vscode.window.showTextDocument(document);
+            const end = document.positionAt(document.getText().length);
+            const original = document.getText();
+            try {
+                for (const [typed, label] of [['CreateThr', 'CreateThread'], ['oncac', 'onCache'], ['thre', 'thread']]) {
+                    await editor.edit((edit) => edit.replace(new vscode.Range(end, document.positionAt(document.getText().length)), `\n${typed}`));
+                    const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+                        'vscode.executeCompletionItemProvider',
+                        document.uri,
+                        document.positionAt(document.getText().length),
+                    );
+                    const found = list.items.filter((item) => item.kind === vscode.CompletionItemKind.Snippet);
+                    const labels = found.map((item) => (typeof item.label === 'string' ? item.label : item.label.label));
+                    assert.ok(labels.includes(label), `${typed}: ${labels.join(', ') || 'no snippets'} of ${list.items.length} items`);
+                }
+            } finally {
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, original));
+                await document.save();
+            }
+        },
+    ],
+    [
         'diagnostics come from qbx-lint with manifest context',
         async () => {
             const uri = workspaceFile('myresource/server/main.lua');
