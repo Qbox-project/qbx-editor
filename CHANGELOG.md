@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Bundle qbx-lua-ls 1.0.1.
+
 ## 1.0.0
 
 - Added Neovim and Helix configuration examples and an editor setup guide.

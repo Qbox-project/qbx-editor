@@ -2,7 +2,7 @@
   "name": "qbx-lua",
   "displayName": "Qbox Lua (FiveM)",
   "description": "Lua support for FiveM: completion, diagnostics, navigation and formatting.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "qbox",
   "license": "GPL-3.0-or-later",
   "repository": {
