@@ -1,0 +1,108 @@
+name: Publish Marketplace
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing GitHub release tag to publish
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub release tag to publish (for example v1.0.1)
+        required: true
+        type: string
+      identity_only:
+        description: Only sign in and show the identity ID for initial publisher setup
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vscode-marketplace
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check publishing configuration
+        shell: bash
+        env:
+          CLIENT_ID: ${{ vars.VSCE_AZURE_CLIENT_ID }}
+          TENANT_ID: ${{ vars.VSCE_AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable release tag such as v1.0.1." >&2
+            exit 1
+          fi
+          if [[ -z "${CLIENT_ID}" || -z "${TENANT_ID}" ]]; then
+            echo "Set VSCE_AZURE_CLIENT_ID and VSCE_AZURE_TENANT_ID in the marketplace environment." >&2
+            exit 1
+          fi
+          echo "ASSET_DIR=${RUNNER_TEMP}/marketplace-assets" >> "${GITHUB_ENV}"
+
+      - name: Download released packages and checksums
+        if: ${{ !inputs.identity_only }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern '*.vsix' --pattern SHA256SUMS --dir "${ASSET_DIR}"
+
+      - name: Verify all five platform packages
+        if: ${{ !inputs.identity_only }}
+        run: python3 scripts/verify-marketplace.py "${ASSET_DIR}" "${RELEASE_TAG}"
+
+      - uses: actions/setup-node@v4
+        if: ${{ !inputs.identity_only }}
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: ${{ !inputs.identity_only }}
+
+      - name: Sign in to Microsoft Entra with GitHub OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.VSCE_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.VSCE_AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Show identity to add to the Marketplace publisher
+        if: ${{ inputs.identity_only }}
+        run: |
+          az rest --url https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+            --resource 499b84ac-1321-427f-aa17-267ca6975798 --query id --output tsv
+
+      - name: Publish all platforms to VS Code Marketplace
+        if: ${{ !inputs.identity_only }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=("${ASSET_DIR}"/*.vsix)
+          npx --no-install vsce publish --azure-credential --skip-duplicate --packagePath "${packages[@]}"
+
+      - name: Summarize publication
+        if: ${{ !inputs.identity_only }}
+        shell: bash
+        run: |
+          printf 'Published release **%s** to [Qbox Lua](https://marketplace.visualstudio.com/items?itemName=Qbox.qbx-lua).\n\n' "${RELEASE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          printf 'Platforms: Windows x64, Linux x64/ARM64, macOS x64/ARM64. Existing platform versions were skipped.\n' >> "${GITHUB_STEP_SUMMARY}"

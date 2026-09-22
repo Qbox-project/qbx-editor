@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Publish all five platform packages to VS Code Marketplace after a GitHub release.
+- Add the Qbox icon, Marketplace presentation and CfxLua/FiveM discovery metadata.
+- Rewrite the README around resource development and Marketplace installation;
+  move source-build instructions to the contributor guide and clarify RedM coverage.
+
 ## 1.0.1
 
 - Bundle qbx-lua-ls 1.0.1.

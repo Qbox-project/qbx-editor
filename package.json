@@ -1,10 +1,15 @@
 {
   "name": "qbx-lua",
-  "displayName": "Qbox Lua (FiveM)",
-  "description": "Lua support for FiveM: completion, diagnostics, navigation and formatting.",
+  "displayName": "Qbox Lua - CfxLua & FiveM",
+  "description": "CfxLua language support for FiveM resource development: native completion, Lua diagnostics, formatting, navigation and client/server checks.",
   "version": "1.0.1",
   "publisher": "qbox",
   "license": "GPL-3.0-or-later",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#111827",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Qbox-project/qbx-editor"
@@ -21,6 +26,12 @@
     "fivem",
     "lua",
     "cfx",
+    "cfxlua",
+    "cfx.re",
+    "fxmanifest",
+    "language server",
+    "formatter",
+    "linting",
     "qbox",
     "qbx",
     "ox_lib",

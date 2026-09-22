@@ -45,6 +45,10 @@ jobs:
           cache-dependency-path: qbx-editor/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s scripts -p "test_*.py"
       - run: npm run server
       - if: runner.os == 'Linux'
         run: xvfb-run -a npm test
