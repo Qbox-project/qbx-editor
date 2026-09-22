@@ -13,8 +13,8 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, rust: x86_64-pc-windows-msvc, vsce: win32-x64, bin: qbx-lua-ls.exe }
-          - { os: ubuntu-latest, rust: x86_64-unknown-linux-gnu, vsce: linux-x64, bin: qbx-lua-ls }
-          - { os: ubuntu-24.04-arm, rust: aarch64-unknown-linux-gnu, vsce: linux-arm64, bin: qbx-lua-ls }
+          - { os: ubuntu-latest, rust: x86_64-unknown-linux-musl, vsce: linux-x64, bin: qbx-lua-ls }
+          - { os: ubuntu-24.04-arm, rust: aarch64-unknown-linux-musl, vsce: linux-arm64, bin: qbx-lua-ls }
           - { os: macos-latest, rust: aarch64-apple-darwin, vsce: darwin-arm64, bin: qbx-lua-ls }
           - { os: macos-15-intel, rust: x86_64-apple-darwin, vsce: darwin-x64, bin: qbx-lua-ls }
     runs-on: ${{ matrix.os }}
@@ -33,8 +33,23 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.rust }}
       - run: rustup default stable
+      - if: contains(matrix.rust, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --locked --target ${{ matrix.rust }}
         working-directory: deps/qbx-lua-ls
+      - name: Check bundled server
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="deps/qbx-lua-ls/target/${{ matrix.rust }}/release/${{ matrix.bin }}"
+          test "$("${binary}" --version)" = "qbx-lua-ls ${GITHUB_REF_NAME#v}"
+          if [[ "${{ matrix.rust }}" == *musl ]]; then
+            readelf -d "${binary}" > dynamic-section.txt
+            if grep -q '(NEEDED)' dynamic-section.txt; then
+              echo "The Linux server must not depend on shared libraries." >&2
+              exit 1
+            fi
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
