@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.0.2
 
+- Keep event and callback autocomplete filtering through `:` and replace the full name when accepting a suggestion.
+- Bundle qbx-lua-ls 1.0.2.
 - Publish all five platform packages to VS Code Marketplace after a GitHub release.
 - Add the Qbox icon, Marketplace presentation and CfxLua/FiveM discovery metadata.
 - Rewrite the README around resource development and Marketplace installation;

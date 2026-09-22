@@ -98,6 +98,44 @@ const tests: Test[] = [
         },
     ],
     [
+        'event suggestions keep their namespace while typing colons',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const editor = await vscode.window.showTextDocument(document);
+            const original = document.getText();
+            const end = document.positionAt(original.length);
+            try {
+                await editor.edit((edit) => edit.insert(end, "\nTriggerServerEvent('')"));
+                const start = document.positionAt(document.getText().length - 2);
+                editor.selection = new vscode.Selection(start, start);
+                await vscode.commands.executeCommand('editor.action.triggerSuggest');
+                for (const character of 'myresource:server:p') {
+                    await vscode.commands.executeCommand('type', { text: character });
+                    const cursor = editor.selection.active;
+                    await waitFor('event completion range', async () => {
+                        const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+                            'vscode.executeCompletionItemProvider', document.uri, cursor,
+                        );
+                        const event = list.items.find((item) =>
+                            (typeof item.label === 'string' ? item.label : item.label.label) === 'myresource:server:ping');
+                        const range = event?.range;
+                        const insert = range instanceof vscode.Range ? range : range?.inserting;
+                        return insert?.start.isEqual(start) && insert.end.isEqual(cursor) ? true : undefined;
+                    });
+                    // Let the suggest widget consume the same document change before the next key.
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+                await vscode.commands.executeCommand('acceptSelectedSuggestion');
+                assert.equal(document.lineAt(start.line).text, "TriggerServerEvent('myresource:server:ping')");
+            } finally {
+                await vscode.commands.executeCommand('hideSuggestWidget');
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, original));
+                await document.save();
+            }
+        },
+    ],
+    [
         'snippets are offered while typing a statement',
         async () => {
             const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
