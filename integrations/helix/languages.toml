@@ -1,0 +1,17 @@
+# Merge into your resource's .helix/languages.toml.
+# Install qbx-lua-ls on PATH, or use its absolute executable path below.
+[language-server.qbx-lua-ls]
+command = "qbx-lua-ls" # stdio is the default; no arguments are needed.
+required-root-patterns = ["fxmanifest.lua", "__resource.lua"]
+
+# Helix config becomes initializationOptions. Do not add a qbxLua wrapper.
+[language-server.qbx-lua-ls.config]
+library = [] # Add absolute folders, e.g. ["C:/server/resources"].
+diagnostics = { enable = true, workspace = true }
+inlayHints = { enable = true }
+semanticTokens = { enable = true }
+
+[[language]]
+name = "lua"
+roots = ["fxmanifest.lua", "__resource.lua"]
+language-servers = ["qbx-lua-ls"]

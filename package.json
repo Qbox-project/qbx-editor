@@ -1,13 +1,13 @@
 {
   "name": "qbx-lua",
   "displayName": "Qbox Lua (FiveM)",
-  "description": "FiveM Lua language support powered by qbx-lua-ls: natives, fxmanifest-aware globals, ox_lib/qbx_core typings, linting and quick fixes with a tiny memory footprint.",
-  "version": "0.2.0",
+  "description": "Lua support for FiveM: completion, diagnostics, navigation and formatting.",
+  "version": "1.0.0",
   "publisher": "qbox",
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Qbox-project/qbx-vscode"
+    "url": "https://github.com/Qbox-project/qbx-editor"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -200,5 +200,9 @@
     "@vscode/vsce": "^3.2.1",
     "esbuild": "^0.24.0",
     "typescript": "^5.6.0"
+  },
+  "homepage": "https://github.com/Qbox-project/qbx-editor#readme",
+  "bugs": {
+    "url": "https://github.com/Qbox-project/qbx-editor/issues"
   }
 }

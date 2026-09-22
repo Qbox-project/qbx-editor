@@ -4,15 +4,49 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: qbx-editor
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: qbx-editor
+      - uses: actions/checkout@v4
+        with:
+          repository: Qbox-project/qbx-lint
+          path: qbx-lint
+      - uses: actions/checkout@v4
+        with:
+          repository: Qbox-project/qbx-lua-ls
+          path: qbx-lua-ls
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal
+      - run: rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: qbx-editor/package-lock.json
       - run: npm ci
       - run: npm run typecheck
-      - run: npm run build -- --production
+      - run: npm run server
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npm test
+      - if: runner.os == 'Windows'
+        run: npm test

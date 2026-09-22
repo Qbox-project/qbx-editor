@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a problem with the tool.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Include the tool version, operating system, and editor if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Include a small Lua example, relevant manifest entries, and the command or editor action.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the error message or relevant output. Remove secrets and private server details.
+    validations:
+      required: true

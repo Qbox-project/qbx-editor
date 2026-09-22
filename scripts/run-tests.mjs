@@ -4,7 +4,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const compiled = spawnSync('npx', ['tsc', '-p', root], { stdio: 'inherit', shell: true });
+const compiled = spawnSync(process.execPath, [join(root, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', root], {
+    stdio: 'inherit',
+});
 if (compiled.status !== 0) {
     process.exit(compiled.status ?? 1);
 }
@@ -12,6 +14,7 @@ if (compiled.status !== 0) {
 const workspace = resolve(root, '..', 'qbx-lua-ls', 'tests', 'fixtures', 'resources');
 try {
     await runTests({
+        vscodeExecutablePath: process.env.VSCODE_EXECUTABLE_PATH,
         extensionDevelopmentPath: root,
         extensionTestsPath: join(root, 'out', 'test', 'suite', 'index.js'),
         launchArgs: [workspace, '--disable-extensions', '--disable-workspace-trust'],

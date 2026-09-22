@@ -10,7 +10,7 @@ const name = process.platform === 'win32' ? 'qbx-lua-ls.exe' : 'qbx-lua-ls';
 const checkout = join(root, '..', 'qbx-lua-ls');
 const source = resolve(process.argv[2] ?? join(checkout, 'target', 'release', name));
 if (!process.argv[2] && existsSync(join(checkout, 'Cargo.toml'))) {
-    const build = spawnSync('cargo', ['build', '--release'], { cwd: checkout, stdio: 'inherit' });
+    const build = spawnSync('cargo', ['build', '--release', '--locked'], { cwd: checkout, stdio: 'inherit' });
     if (build.status !== 0) {
         process.exit(build.status ?? 1);
     }

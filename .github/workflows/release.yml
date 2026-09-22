@@ -3,40 +3,57 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: read
+
 jobs:
   package:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, rust: x86_64-pc-windows-msvc, vsce: win32-x64, folder: win32-x64, bin: qbx-lua-ls.exe }
-          - { os: ubuntu-latest, rust: x86_64-unknown-linux-gnu, vsce: linux-x64, folder: linux-x64, bin: qbx-lua-ls }
-          - { os: macos-latest, rust: aarch64-apple-darwin, vsce: darwin-arm64, folder: darwin-arm64, bin: qbx-lua-ls }
-          - { os: macos-13, rust: x86_64-apple-darwin, vsce: darwin-x64, folder: darwin-x64, bin: qbx-lua-ls }
+          - { os: windows-latest, rust: x86_64-pc-windows-msvc, vsce: win32-x64, bin: qbx-lua-ls.exe }
+          - { os: ubuntu-latest, rust: x86_64-unknown-linux-gnu, vsce: linux-x64, bin: qbx-lua-ls }
+          - { os: ubuntu-24.04-arm, rust: aarch64-unknown-linux-gnu, vsce: linux-arm64, bin: qbx-lua-ls }
+          - { os: macos-latest, rust: aarch64-apple-darwin, vsce: darwin-arm64, bin: qbx-lua-ls }
+          - { os: macos-15-intel, rust: x86_64-apple-darwin, vsce: darwin-x64, bin: qbx-lua-ls }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
           repository: Qbox-project/qbx-lint
+          ref: ${{ github.ref_name }}
           path: deps/qbx-lint
       - uses: actions/checkout@v4
         with:
           repository: Qbox-project/qbx-lua-ls
+          ref: ${{ github.ref_name }}
           path: deps/qbx-lua-ls
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust }}
-      - run: cargo build --release --target ${{ matrix.rust }}
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --target ${{ matrix.rust }}
+      - run: rustup default stable
+      - run: cargo build --release --locked --target ${{ matrix.rust }}
         working-directory: deps/qbx-lua-ls
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Check version
+        run: node -e "const p = require('./package.json'); if (process.env.GITHUB_REF_NAME !== 'v' + p.version) throw new Error('Tag must match package.json version ' + p.version)"
       - run: npm ci
       - run: node scripts/copy-server.mjs deps/qbx-lua-ls/target/${{ matrix.rust }}/release/${{ matrix.bin }}
-      - run: npx vsce package --no-dependencies --target ${{ matrix.vsce }}
+      - run: npm run typecheck
+      - run: npx vsce package --no-dependencies --target ${{ matrix.vsce }} --out qbx-lua-${{ matrix.vsce }}.vsix
       - uses: actions/upload-artifact@v4
         with:
           name: vsix-${{ matrix.vsce }}
-          path: "*.vsix"
+          path: qbx-lua-${{ matrix.vsce }}.vsix
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    uses: Qbox-project/.github/.github/workflows/release-artifacts.yml@main
+    with:
+      artifact-pattern: vsix-*
+    secrets: inherit

@@ -4,3 +4,7 @@ out
 server
 .vscode-test
 *.vsix
+
+# Local files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+name: Discord Releases
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    uses: Qbox-project/.github/.github/workflows/discord-release.yml@main
+    secrets: inherit
