@@ -18,8 +18,8 @@ run the standalone server. JetBrains describes its adapter API in the
 
 ## Obtain the server
 
-When a tagged server release is published, download the archive for your operating
-system and architecture from [qbx-lua-ls releases](https://github.com/Qbox-project/qbx-lua-ls/releases).
+Download the archive for your operating system and architecture from
+[qbx-lua-ls releases](https://github.com/Qbox-project/qbx-lua-ls/releases).
 Extract the executable before configuring the editor.
 
 To build locally, follow the [source setup](../README.md#build-from-source) to

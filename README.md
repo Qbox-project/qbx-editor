@@ -10,10 +10,9 @@ The VS Code extension ID is `qbox.qbx-lua`.
 
 ## Install in VS Code
 
-When a tagged release is published, download the `.vsix` for your operating
-system and architecture from [Releases](https://github.com/Qbox-project/qbx-editor/releases).
-The release workflow packages Windows x64, Linux x64/ARM64 and macOS x64/ARM64.
-If no package is available yet, [build one from source](#build-from-source).
+Download the `.vsix` for your operating system and architecture from
+[Releases](https://github.com/Qbox-project/qbx-editor/releases). Packages cover Windows x64,
+Linux x64/ARM64 and macOS x64/ARM64. You can also [build one from source](#build-from-source).
 
 Run **Extensions: Install from VSIX** in the Command Palette and select the file.
 You can also install it from a terminal, using the path to your package:
