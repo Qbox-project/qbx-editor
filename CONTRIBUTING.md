@@ -58,6 +58,28 @@ For Marketplace workflow changes, run `python -m unittest discover -s scripts -p
 These checks cover incomplete releases, wrong platform/extension metadata, missing
 server binaries and corrupted release assets.
 
+## Zed extension
+
+`integrations/zed` is a Rust crate compiled to WebAssembly. Check it with:
+
+```sh
+cd integrations/zed
+rustup target add wasm32-wasip2
+cargo fmt --check
+cargo clippy --locked --target wasm32-wasip2 -- -D warnings
+cargo build --locked --release --target wasm32-wasip2
+```
+
+The queries in `languages/` are adapted from `zed-extensions/lua` and must stay
+valid for the grammar commits pinned in `extension.toml`.
+
+To try it, run **zed: install dev extension** in Zed and select `integrations/zed`.
+The extension downloads the latest qbx-lua-ls release, so test server changes by
+putting a local build on `PATH` or setting `lsp.qbx-lua-ls.binary.path`.
+
+The versions in `extension.toml` and `Cargo.toml` must match `package.json`; CI
+fails otherwise.
+
 ## Issues and pull requests
 
 Include the editor and extension versions, operating system, and a small resource

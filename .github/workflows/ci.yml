@@ -54,3 +54,28 @@ jobs:
         run: xvfb-run -a npm test
       - if: runner.os == 'Windows'
         run: npm test
+
+  zed:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/zed
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt --target wasm32-wasip2
+      - run: rustup default stable
+      - name: Check version matches package.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(node -p "require('../../package.json').version")"
+          for manifest in extension.toml Cargo.toml; do
+            if ! grep -qx "version = \"${expected}\"" "${manifest}"; then
+              echo "${manifest} must use version ${expected} from package.json." >&2
+              exit 1
+            fi
+          done
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --target wasm32-wasip2 -- -D warnings
+      - run: cargo build --locked --release --target wasm32-wasip2

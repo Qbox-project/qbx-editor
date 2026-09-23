@@ -125,8 +125,9 @@ an issue, include the extension version, operating system and a small reproducti
 
 The bundled server, `qbx-lua-ls`, is also available as a standalone executable.
 The [editor setup guide](https://github.com/Qbox-project/qbx-editor/blob/main/docs/editors.md)
-includes Neovim 0.11+ and Helix configuration examples. Those examples have not been
-integration-tested in those editors; VS Code has an automated integration suite.
+covers the Zed extension in `integrations/zed` and includes Neovim 0.11+ and Helix
+configuration examples. None of these has been integration-tested in its editor;
+VS Code has an automated integration suite.
 
 Other LSP clients need their own configuration or adapter. The VS Code commands,
 status bar and syntax grammars are part of this extension. A JetBrains integration

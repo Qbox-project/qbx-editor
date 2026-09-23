@@ -9,3 +9,8 @@ server
 .DS_Store
 Thumbs.db
 __pycache__/
+
+# Zed dev extension build output
+integrations/zed/target
+integrations/zed/extension.wasm
+integrations/zed/grammars

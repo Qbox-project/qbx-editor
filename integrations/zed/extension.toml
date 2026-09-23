@@ -1,0 +1,23 @@
+id = "cfxlua"
+name = "CfxLua"
+description = "CfxLua support for FiveM and RedM resources, powered by the qbx-lua-ls language server: natives, diagnostics, completion, formatting and navigation."
+version = "1.0.2"
+schema_version = 1
+authors = ["Qbox Project"]
+repository = "https://github.com/Qbox-project/qbx-editor"
+
+[language_servers.qbx-lua-ls]
+name = "qbx-lua-ls"
+languages = ["CfxLua", "LuaCATS"]
+
+[language_servers.qbx-lua-ls.language_ids]
+"CfxLua" = "lua"
+"LuaCATS" = "lua"
+
+[grammars.lua]
+repository = "https://github.com/tree-sitter-grammars/tree-sitter-lua"
+commit = "10fe0054734eec83049514ea2e718b2a56acd0c9"
+
+[grammars.emmyluadoc]
+repository = "https://github.com/EmmyLuaLs/tree-sitter-emmyluadoc"
+commit = "ea755c0fd34c07e16597bd62a404d6eba2a3891e"

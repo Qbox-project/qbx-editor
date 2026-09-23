@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a CfxLua dev extension for Zed in `integrations/zed`: a CfxLua language for `.lua` files that downloads and runs qbx-lua-ls without LuaLS.
+
 ## 1.0.2
 
 - Keep event and callback autocomplete filtering through `:` and replace the full name when accepting a suggestion.
