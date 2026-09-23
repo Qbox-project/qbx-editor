@@ -91,7 +91,6 @@ jobs:
       id-token: write
     env:
       RELEASE_TAG: ${{ github.ref_name }}
-      ASSET_DIR: ${{ runner.temp }}/openvsx-assets
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,7 +104,7 @@ jobs:
             echo "Expected a stable release tag such as v1.0.1." >&2
             exit 1
           fi
-          mkdir -p "${ASSET_DIR}"
+          echo "ASSET_DIR=${RUNNER_TEMP}/openvsx-assets" >> "${GITHUB_ENV}"
 
       - name: Download released packages and checksums
         shell: bash
