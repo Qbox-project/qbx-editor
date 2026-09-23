@@ -90,3 +90,4 @@ sharing logs or fixtures.
 Describe what the change fixes and which checks you ran. For editor configuration
 examples, distinguish syntax checks from testing in the actual editor. Keep the
 setup guide and settings documentation in step with behavior changes.
+Release notes are generated from commit messages, so write them as [Conventional Commits](https://www.conventionalcommits.org).

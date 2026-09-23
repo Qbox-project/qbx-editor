@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Qbox.qbx-lua">Install from VS Code Marketplace</a>
-  · <a href="https://github.com/Qbox-project/qbx-editor/blob/main/CHANGELOG.md">Release notes</a>
+  · <a href="https://github.com/Qbox-project/qbx-editor/releases">Release notes</a>
   · <a href="https://github.com/Qbox-project/qbx-editor/issues">Report an issue</a>
 </p>
 
