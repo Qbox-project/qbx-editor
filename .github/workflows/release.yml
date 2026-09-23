@@ -81,3 +81,62 @@ jobs:
     uses: ./.github/workflows/marketplace.yml
     with:
       tag: ${{ github.ref_name }}
+  openvsx:
+    name: Publish Open VSX
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: openvsx
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      ASSET_DIR: ${{ runner.temp }}/openvsx-assets
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable release tag such as v1.0.1." >&2
+            exit 1
+          fi
+          mkdir -p "${ASSET_DIR}"
+
+      - name: Download released packages and checksums
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern '*.vsix' --pattern SHA256SUMS --dir "${ASSET_DIR}"
+
+      - name: Verify all five platform packages
+        run: python3 scripts/verify-marketplace.py "${ASSET_DIR}" "${RELEASE_TAG}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Publish all platforms to Open VSX
+        shell: bash
+        env:
+          # ovsx uses this token when set and falls back to trusted publishing when empty.
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          set -euo pipefail
+          for target in win32-x64 linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            npx --yes ovsx@1.2.0 publish "${ASSET_DIR}/qbx-lua-${target}.vsix" \
+              --target "${target}" --skip-duplicate
+          done
+
+      - name: Summarize publication
+        shell: bash
+        run: |
+          printf 'Published release **%s** to [Open VSX](https://open-vsx.org/extension/qbox/qbx-lua).\n\n' "${RELEASE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          printf 'Platforms: Windows x64, Linux x64/ARM64, macOS x64/ARM64. Existing platform versions were skipped.\n' >> "${GITHUB_STEP_SUMMARY}"

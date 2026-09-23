@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add a CfxLua dev extension for Zed in `integrations/zed`: a CfxLua language for `.lua` files that downloads and runs qbx-lua-ls without LuaLS.
+- Publish all five platform packages to Open VSX after a GitHub release.
 
 ## 1.0.2
 
