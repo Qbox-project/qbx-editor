@@ -19,6 +19,12 @@ track client, server and shared scripts, resource dependencies, exports and even
 The language server is included. You can work on a single resource or an entire
 `resources` folder, without installing Rust or a separate language server.
 
+<p align="center">
+  <a href="https://youtu.be/n_x_N1LN3cc">
+    <img src="docs/images/demo-video.jpg" alt="Watch the Qbox Lua demo video on YouTube" width="720">
+  </a>
+</p>
+
 ## Built for resource development
 
 | Feature | What it helps you do |
