@@ -2,7 +2,7 @@
   "name": "qbx-lua",
   "displayName": "Qbox Lua - CfxLua & FiveM",
   "description": "CfxLua language support for FiveM resource development: native completion, Lua diagnostics, formatting, navigation and client/server checks.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "qbox",
   "license": "GPL-3.0-or-later",
   "icon": "images/icon.png",
