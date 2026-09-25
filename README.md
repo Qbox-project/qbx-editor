@@ -85,6 +85,7 @@ For example:
 
 ```toml
 exclude = ["web/**", "**/vendor/**"]
+ignore_diagnostics = ['\[standalone\]/']
 
 [rules]
 "unused-argument" = "off"
@@ -94,6 +95,10 @@ indent_width = 4
 use_tabs = false
 quote_style = "preserve"
 ```
+
+`exclude` removes files from analysis entirely. `ignore_diagnostics` takes gitignore-style
+patterns for code you don't maintain: those files stay indexed for definitions and completion,
+but their problems are hidden.
 
 See the [configuration reference](https://github.com/Qbox-project/qbx-lint/blob/main/docs/reference.md)
 and [rule list](https://github.com/Qbox-project/qbx-lint/blob/main/docs/rules.md).
