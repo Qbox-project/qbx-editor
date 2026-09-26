@@ -413,12 +413,17 @@ ignore_diagnostics = ['\[standalone\]/']
 [format]
 indent_width = 4
 use_tabs = false
+line_width = 120
 quote_style = "preserve"
 ```
 
 `exclude` removes files from analysis entirely. `ignore_diagnostics` takes gitignore-style
 patterns for code you don't maintain: those files stay indexed for definitions and completion,
 but their problems are hidden.
+
+The extension registers itself as the default Lua formatter. Without a `qbxlint.toml`, the
+formatter wraps lines longer than 120 columns; projects that keep long lines should raise
+`line_width` before enabling format on save, or the first save reflows every long statement.
 
 See the [configuration reference](https://github.com/Qbox-project/qbx-lint/blob/main/docs/reference.md)
 and [rule list](https://github.com/Qbox-project/qbx-lint/blob/main/docs/rules.md).
