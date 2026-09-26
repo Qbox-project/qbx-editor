@@ -1,6 +1,21 @@
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { runRconTests } from './rcon';
+import { runResourceTests } from './resources';
+import { runResourceControlTests } from './resourceControls';
+import { runReferenceBrowserTests } from './referenceBrowser';
+import { runSnippetTests } from './snippets';
+import { runResourceWizardTests } from './resourceWizard';
+import { runResourceDetailsTests } from './resourceDetails';
+import { runRuntimeToolsTests } from './runtimeTools';
+import { runRuntimeLogCoreTests } from './runtimeLogCore';
+import { runNuiToolsTests } from './nuiTools';
+import { runNuiPreviewServerTests } from './nuiPreviewServer';
+import { runLuaUtilitiesTests } from './luaUtilities';
+import { runAssistantToolsTests } from './assistantTools';
+import { runAssetTests } from './assets';
+import { runAssetHostTests } from './assetsHost';
 
 type Test = [name: string, body: () => Promise<void>];
 
@@ -38,6 +53,21 @@ function hoverText(hovers: vscode.Hover[]): string {
 }
 
 const tests: Test[] = [
+    ['RCON transport uses exact targets and bounded authenticated responses', runRconTests],
+    ['resource discovery follows folders and manifest lifecycle', runResourceTests],
+    ['resource connection storage and Explorer integration', runResourceControlTests],
+    ['reference browser search, actions and editor integration', runReferenceBrowserTests],
+    ['snippet browser storage, actions and editor integration', runSnippetTests],
+    ['resource wizard templates, creation and cancellation', runResourceWizardTests],
+    ['resource details snapshots, navigation and editor integration', runResourceDetailsTests],
+    ['runtime logs and workspace health editor integration', runRuntimeToolsTests],
+    ['runtime log following, bounds and trace parsing', runRuntimeLogCoreTests],
+    ['NUI presets, resource lifecycle and real editor preview', runNuiToolsTests],
+    ['NUI local asset serving, isolation and lifetime', runNuiPreviewServerTests],
+    ['Lua utility calculations, conversion and editor insertion', runLuaUtilitiesTests],
+    ['Structured assistant tools, portable MCP and editor API', runAssistantToolsTests],
+    ['Asset formats, texture decoding and bounded inventory', runAssetTests],
+    ['Asset browser resource lifecycle and real editor rendering', runAssetHostTests],
     [
         'activates and answers status requests',
         async () => {
@@ -46,7 +76,7 @@ const tests: Test[] = [
             await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua')).then((doc) => vscode.window.showTextDocument(doc));
             await waitFor('activation', () => (extension.isActive ? true : undefined));
             const commands = await vscode.commands.getCommands(true);
-            for (const command of ['qbxLua.restartServer', 'qbxLua.reindex', 'qbxLua.showStatus', 'qbxLua.showOutput', 'qbxLua.showSnippets']) {
+            for (const command of ['qbxLua.restartServer', 'qbxLua.reindex', 'qbxLua.showStatus', 'qbxLua.showOutput', 'qbxLua.showSnippets', 'qbxLua.openReference']) {
                 assert.ok(commands.includes(command), `${command} should be registered`);
             }
         },
@@ -74,6 +104,41 @@ const tests: Test[] = [
             });
             assert.match(text, /function MyLib\.round\(value: number, decimals\?: integer\): number/);
             assert.match(text, /Rounds a number/);
+        },
+    ],
+    [
+        'native argument hovers explain controls and ped flags in the editor',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const editor = await vscode.window.showTextDocument(document);
+            const original = document.getText();
+            const control = 'IsControlJustPressed(0, 38)';
+            const flag = 'SetPedConfigFlag(PlayerPedId(), 48, true)';
+            try {
+                await editor.edit((edit) => edit.insert(document.positionAt(original.length), `\n${control}\n${flag}\n`));
+                for (const [call, literal, expected] of [[control, '38', 'INPUT_PICKUP'], [flag, '48', 'CPED_CONFIG_FLAG_BlockWeaponSwitching']]) {
+                    const position = positionOf(document, call, call.indexOf(literal));
+                    const hovers = await waitFor('native argument hover', async () => {
+                        const result = await vscode.commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', document.uri, position);
+                        return hoverText(result ?? []).includes(expected) ? result : undefined;
+                    });
+                    const text = hoverText(hovers);
+                    assert.match(text, /https:\/\/(docs\.fivem\.net|github\.com\/citizenfx)/);
+                    assert.ok(hovers.some((hover) => hover.range && document.getText(hover.range) === literal), 'hover range should cover only the ID');
+                    if (call === control) {
+                        assert.match(text, /\bE\b/);
+                        assert.match(text, /\bLB\b/);
+                        assert.match(text, /default/i);
+                    }
+                }
+                const groupPosition = positionOf(document, control, control.indexOf('0'));
+                const groupHover = await vscode.commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', document.uri, groupPosition);
+                assert.ok(!hoverText(groupHover ?? []).includes('INPUT_NEXT_CAMERA'), 'pad group zero must not be mistaken for control zero');
+            } finally {
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, original));
+                await document.save();
+            }
         },
     ],
     [
@@ -132,6 +197,79 @@ const tests: Test[] = [
                 const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
                 await editor.edit((edit) => edit.replace(whole, original));
                 await document.save();
+            }
+        },
+    ],
+    [
+        'framework callbacks expose local payloads and navigate to their own handlers',
+        async () => {
+            const server = await vscode.workspace.openTextDocument(workspaceFile('myresource/server/main.lua'));
+            const client = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const originals = [server, client].map((document) => ({ document, text: document.getText() }));
+            const edit = new vscode.WorkspaceEdit();
+            edit.insert(server.uri, server.positionAt(server.getText().length), `
+local CallbackQB = exports['qb-core']:GetCoreObject()
+local CallbackESX = exports['es_extended']:getSharedObject()
+---@param source integer
+---@param cb function
+---@param garageId string
+local function editorQbHandler(source, cb, garageId) cb(garageId) end
+---@param source integer
+---@param cb function
+---@param vehicleId integer
+local function editorEsxHandler(source, cb, vehicleId) cb(vehicleId) end
+CallbackQB.Functions.CreateCallback('editor:lookup', editorQbHandler)
+CallbackESX.RegisterServerCallback('editor:lookup', editorEsxHandler)
+`);
+            edit.insert(client.uri, client.positionAt(client.getText().length), `
+local CallbackQB = exports['qb-core']:GetCoreObject()
+local CallbackESX = exports['es_extended']:getSharedObject()
+CallbackQB.Functions.TriggerCallback('editor:lookup', function(result) end, 'central')
+CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
+`);
+            try {
+                assert.ok(await vscode.workspace.applyEdit(edit));
+                for (const [trigger, registration, payload, label] of [
+                    ['CallbackQB.Functions.TriggerCallback', 'CallbackQB.Functions.CreateCallback', "'central'", 'garageId: string'],
+                    ['CallbackESX.TriggerServerCallback', 'CallbackESX.RegisterServerCallback', '42', 'vehicleId: integer'],
+                ]) {
+                    const callStart = client.getText().indexOf(`${trigger}('editor:lookup'`);
+                    const namePosition = client.positionAt(callStart + trigger.length + 3);
+                    const suggestions = await waitFor('framework callback completion', async () => {
+                        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+                            'vscode.executeCompletionItemProvider', client.uri, namePosition,
+                        );
+                        return result?.items.find((item) =>
+                            (typeof item.label === 'string' ? item.label : item.label.label) === 'editor:lookup');
+                    });
+                    assert.match(suggestions.detail ?? '', new RegExp(label));
+                    const payloadPosition = client.positionAt(client.getText().indexOf(payload, callStart) + 1);
+                    const signature = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+                        'vscode.executeSignatureHelpProvider', client.uri, payloadPosition,
+                    );
+                    assert.ok(signature?.signatures[0].label.includes(label), JSON.stringify(signature));
+                    assert.equal(signature.activeParameter, 2);
+                    const locations = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
+                        'vscode.executeDefinitionProvider', client.uri, namePosition,
+                    );
+                    assert.equal(locations.length, 1, JSON.stringify(locations));
+                    const location = locations[0];
+                    const target = 'targetUri' in location ? location.targetUri : location.uri;
+                    const range = 'targetUri' in location ? (location.targetSelectionRange ?? location.targetRange) : location.range;
+                    assert.equal(target.toString(), server.uri.toString());
+                    assert.ok(server.lineAt(range.start.line).text.startsWith(registration));
+                    const hints = await vscode.commands.executeCommand<vscode.InlayHint[]>(
+                        'vscode.executeInlayHintProvider', client.uri, client.lineAt(payloadPosition.line).range,
+                    );
+                    assert.ok(hints.some((hint) => hint.label === `${label.split(':')[0]}:`), JSON.stringify(hints));
+                }
+            } finally {
+                const restore = new vscode.WorkspaceEdit();
+                for (const { document, text } of originals) {
+                    restore.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), text);
+                }
+                assert.ok(await vscode.workspace.applyEdit(restore));
+                await Promise.all(originals.map(({ document }) => document.save()));
             }
         },
     ],

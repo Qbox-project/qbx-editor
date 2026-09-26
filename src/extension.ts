@@ -2,6 +2,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, State, TransportKind } from 'vscode-languageclient/node';
+import { ResourceControls } from './resourceControls';
+import { ReferenceBrowser } from './referenceBrowser';
+import { SnippetBrowser } from './snippetBrowser';
 
 interface ServerStatus {
     files: number;
@@ -22,18 +25,96 @@ let client: LanguageClient | undefined;
 let statusItem: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<import('./assistantVscode.js').AssistantApi> {
     output = vscode.window.createOutputChannel('Qbox Lua');
     statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
     statusItem.command = 'qbxLua.showStatus';
     context.subscriptions.push(output, statusItem);
+    const resourceControls = new ResourceControls(context);
+    context.subscriptions.push(resourceControls);
+    const request = async <T>(method: string, params: unknown, token?: vscode.CancellationToken): Promise<T> => {
+        if (!client || client.state !== State.Running) {
+            throw new Error('The Qbox Lua language server is not running. Use Qbox Lua: Restart Language Server, then retry.');
+        }
+        return token ? client.sendRequest<T>(method, params, token) : client.sendRequest<T>(method, params);
+    };
+    const referenceBrowser = new ReferenceBrowser(context.extensionUri, request);
+    const snippetBrowser = new SnippetBrowser(context.extensionUri, context.globalStorageUri, request);
+    context.subscriptions.push(referenceBrowser, snippetBrowser);
+    let resourceWizard: import('./resourceWizard.js').ResourceWizard | undefined;
+    let wizardDisposed = false;
+    context.subscriptions.push({ dispose: () => { wizardDisposed = true; resourceWizard?.dispose(); } });
+    let resourceDetails: import('./resourceDetailsBrowser.js').ResourceDetailsController | undefined;
+    let detailsDisposed = false;
+    context.subscriptions.push({ dispose: () => { detailsDisposed = true; resourceDetails?.dispose(); } });
+    let runtimeLog: import('./runtimeToolsBrowser.js').RuntimeLogController | undefined;
+    let workspaceHealth: import('./runtimeToolsBrowser.js').WorkspaceHealthController | undefined;
+    let runtimeToolsDisposed = false;
+    context.subscriptions.push({ dispose: () => { runtimeToolsDisposed = true; runtimeLog?.dispose(); workspaceHealth?.dispose(); } });
+    let nuiPreview: import('./nuiBrowser.js').NuiController | undefined;
+    let nuiDisposed = false;
+    context.subscriptions.push({ dispose: () => { nuiDisposed = true; nuiPreview?.dispose(); } });
+    let utilities: import('./luaUtilitiesBrowser.js').LuaUtilitiesBrowser | undefined;
+    let assets: import('./assetBrowser.js').AssetController | undefined;
+    let extraToolsDisposed = false;
+    context.subscriptions.push({ dispose: () => { extraToolsDisposed = true; utilities?.dispose(); assets?.dispose(); } });
 
     context.subscriptions.push(
         vscode.commands.registerCommand('qbxLua.restartServer', () => restart(context)),
         vscode.commands.registerCommand('qbxLua.reindex', reindex),
-        vscode.commands.registerCommand('qbxLua.showSnippets', showSnippets),
+        vscode.commands.registerCommand('qbxLua.showSnippets', () => snippetBrowser.show()),
+        vscode.commands.registerCommand('qbxLua.openSnippets', () => snippetBrowser.show()),
+        vscode.commands.registerCommand('qbxLua.saveSelectionAsSnippet', () => snippetBrowser.saveSelection()),
+        vscode.commands.registerCommand('qbxLua.editPersonalSnippets', () => snippetBrowser.editPersonal()),
+        vscode.commands.registerCommand('qbxLua.editWorkspaceSnippets', () => snippetBrowser.editWorkspace()),
+        vscode.commands.registerCommand('qbxLua.openReference', () => referenceBrowser.show()),
+        vscode.commands.registerCommand('qbxLua.openLuaUtilities', async () => {
+            const { LuaUtilitiesBrowser } = await import('./luaUtilitiesBrowser.js');
+            if (extraToolsDisposed) { return; }
+            utilities ??= new LuaUtilitiesBrowser(context.extensionUri);
+            utilities.show();
+        }),
+        vscode.commands.registerCommand('qbxLua.openAssets', async (uri?: unknown) => {
+            const { AssetController } = await import('./assetBrowser.js');
+            if (extraToolsDisposed) { return; }
+            assets ??= new AssetController(context.extensionUri, request, resourceControls.resourceIndex);
+            await assets.show(uri);
+        }),
+        vscode.commands.registerCommand('qbxLua.assistantSetup', async () => {
+            await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.joinPath(context.extensionUri, 'docs', 'assistant-tools.md'));
+        }),
+        vscode.commands.registerCommand('qbxLua.resources.create', async (uri?: unknown) => {
+            const { ResourceWizard } = await import('./resourceWizard.js');
+            if (wizardDisposed) { return; }
+            resourceWizard ??= new ResourceWizard();
+            await resourceWizard.show(uri);
+        }),
+        vscode.commands.registerCommand('qbxLua.resources.details', async (uri?: unknown) => {
+            const { ResourceDetailsController } = await import('./resourceDetailsBrowser.js');
+            if (detailsDisposed) { return; }
+            resourceDetails ??= new ResourceDetailsController(context.extensionUri, request, resourceControls.resourceIndex);
+            await resourceDetails.show(uri);
+        }),
         vscode.commands.registerCommand('qbxLua.showStatus', showStatus),
+        vscode.commands.registerCommand('qbxLua.openRuntimeLog', async (uri?: unknown) => {
+            const { RuntimeLogController } = await import('./runtimeToolsBrowser.js');
+            if (runtimeToolsDisposed) { return; }
+            runtimeLog ??= new RuntimeLogController(context.extensionUri, resourceControls.resourceIndex);
+            await runtimeLog.show(uri);
+        }),
+        vscode.commands.registerCommand('qbxLua.workspaceHealth', async () => {
+            const { WorkspaceHealthController } = await import('./runtimeToolsBrowser.js');
+            if (runtimeToolsDisposed) { return; }
+            workspaceHealth ??= new WorkspaceHealthController(context.extensionUri, request);
+            await workspaceHealth.show();
+        }),
         vscode.commands.registerCommand('qbxLua.showOutput', () => output.show()),
+        vscode.commands.registerCommand('qbxLua.openNuiPreview', async (uri?: unknown) => {
+            const { NuiController } = await import('./nuiBrowser.js');
+            if (nuiDisposed) { return; }
+            nuiPreview ??= new NuiController(context.extensionUri, context.workspaceState, request, resourceControls.resourceIndex);
+            await nuiPreview.show(uri);
+        }),
         vscode.workspace.onDidChangeConfiguration((event) => {
             const needsRestart = event.affectsConfiguration(`${CONFIG_SECTION}.server.path`) || event.affectsConfiguration(`${CONFIG_SECTION}.library`);
             if (needsRestart) {
@@ -53,6 +134,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     await start(context);
     warnAboutOtherLuaExtensions();
+    const { registerAssistantTools } = await import('./assistantVscode.js');
+    return registerAssistantTools(context, request);
 }
 
 export async function deactivate(): Promise<void> {
@@ -211,41 +294,6 @@ async function reindex(): Promise<void> {
     void vscode.window.showInformationMessage(
         `Qbox Lua indexed ${result.files} files in ${result.resources} resources (${result.millis} ms).`,
     );
-}
-
-interface ServerSnippet {
-    label: string;
-    description: string;
-    body: string;
-    preview: string;
-}
-
-async function showSnippets(): Promise<void> {
-    if (!client || client.state !== State.Running) {
-        void vscode.window.showWarningMessage('The Qbox Lua language server is not running.');
-        return;
-    }
-    const editor = vscode.window.activeTextEditor;
-    const isLua = editor?.document.languageId === 'lua';
-    const params = isLua && editor ? { uri: editor.document.uri.toString() } : null;
-    const snippets = await client.sendRequest<ServerSnippet[]>('qbx/snippets', params);
-    const picked = await vscode.window.showQuickPick(
-        snippets.map((snippet) => ({
-            label: snippet.label,
-            description: snippet.description,
-            detail: snippet.preview.replace(/\s*\n\s*/g, ' ⏎ '),
-            snippet,
-        })),
-        {
-            title: 'Qbox Lua snippets',
-            placeHolder: isLua ? 'Type the name in a Lua file to get these as suggestions; pick one to insert it now' : 'Open a Lua file to insert a snippet',
-            matchOnDescription: true,
-            matchOnDetail: true,
-        },
-    );
-    if (picked && isLua && editor) {
-        await editor.insertSnippet(new vscode.SnippetString(picked.snippet.body));
-    }
 }
 
 async function showStatus(): Promise<void> {

@@ -1,5 +1,5 @@
 **
-!dist/**
+!dist/*.js
 !server/**
 !syntaxes/**
 !snippets/**
@@ -7,3 +7,9 @@
 !package.json
 !README.md
 !LICENSE
+!THIRD_PARTY_NOTICES.md
+!docs/assistant-tools.md
+!docs/lua-utilities.md
+!docs/assets.md
+!docs/nui-preview.md
+!docs/resource-templates.md

@@ -1,0 +1,39 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Qbox Lua custom snippets",
+    "description": "Named Lua snippets using VS Code snippet syntax. Comments and trailing commas are supported. Files must stay within 1 MiB.",
+    "type": "object",
+    "maxProperties": 1000,
+    "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "additionalProperties": {
+        "type": "object",
+        "required": ["body"],
+        "additionalProperties": false,
+        "properties": {
+            "prefix": {
+                "description": "Optional trigger labels shown in the snippet library.",
+                "oneOf": [
+                    { "type": "string", "maxLength": 128, "pattern": "^[^\\u0000-\\u001f\\u007f]*$" },
+                    {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": { "type": "string", "maxLength": 128, "pattern": "^[^\\u0000-\\u001f\\u007f]*$" }
+                    }
+                ]
+            },
+            "description": { "type": "string", "maxLength": 2048 },
+            "body": {
+                "description": "Snippet text with optional tab stops, placeholders and variables. The combined UTF-8 body must not exceed 128 KiB.",
+                "oneOf": [
+                    { "type": "string", "maxLength": 131072 },
+                    { "type": "array", "items": { "type": "string" } }
+                ]
+            }
+        }
+    }
+}

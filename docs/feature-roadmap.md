@@ -1,0 +1,30 @@
+# FiveM workspace feature decisions
+
+This is a working decision list, not an approved implementation backlog. Propose
+each feature's concrete scope, ask for a yes/no decision, implement and verify
+approved work, then proceed to the next decision. Keep Lua as the primary language.
+
+| # | Feature | Decision/status |
+|---|---|---|
+| 1 | Existing Explorer folder menu: Start, Stop, Restart, Open Manifest; workspace-specific RCON connection | Implemented; TypeScript/build and full VS Code integration suite passed with local mock UDP servers; live server verification pending |
+| 2 | Native argument reference hovers: control IDs and ped config flags | Implemented: 361 controls and 464 flags bundled offline; shared Rust checks, 71 language-server tests and full VS Code integration suite pass |
+| 3 | Searchable native/reference editor tab using the same data as hovers | Implemented; 77 Rust tests, full VS Code suite including 16 browser tests, and rendered UI checks passed. On-demand tab reuses bundled data; roughly 76 KiB additional production JavaScript |
+| 4 | Unified recipe browser, including user/workspace snippets and selection-to-snippet | Implemented; existing Lua/manifest recipes, personal and multi-root JSONC libraries, previews/insertion, duplicate/edit and literal selection saving. Full VS Code suite including 18 snippet tests and rendered UI checks passed; about 50 KiB added production JavaScript |
+| 5 | Resource creation wizard with maintained Lua/framework/content templates | Implemented; plain Lua/ox_lib/Qbox starters, exact read-only preview, Command Palette/Explorer entry, exclusive creation and guarded rollback. Full VS Code suite including 16 wizard tests passed; roughly 15 KiB separate bundle loaded on demand |
+| 6 | Framework adapters using local source first, versioned definitions and small corrections | Implemented; QB-Core/ESX callback completion, definitions, hovers and typed payload hints from local handlers, with family/provenance/side guards and conflict handling. Rust formatting/lint, 86 Rust tests and full VS Code integration suite pass. No new dependency or docs catalog; Windows server binary increased by 33 KiB |
+| 7 | Resource relationship UX: context badges, event/export counts, dependencies and graph | Implemented; Resource Details tab with indexed Lua file counts, searchable source-linked events/callbacks/exports, direct dependencies/dependents and a small diagram. Reuses the local index and Explorer discovery; no new dependencies. Rust formatting/lint, 91 Rust tests, full VS Code suite including 11 details tests, and wide/narrow rendered UI checks pass. Roughly 34 KiB JavaScript loaded on demand and 128 KiB additional Windows server code. Folder badges remain optional/separate |
+| 8 | Runtime logs linked to source and environment doctor | Implemented; selected-file log following with bounded history, rotation/truncation handling, pause/filter and Lua source links; workspace health shows language-server status, duplicate names and unresolved/ambiguous dependencies. Both load on demand with no new dependencies. Formatting/lint, 96 Rust tests, full VS Code suite including 19 runtime tools tests, and wide/narrow UI checks pass. Roughly 47 KiB on-demand JavaScript and 77 KiB additional Windows server code |
+| 9 | Build-aware restart-on-save and additional connection/profile conveniences | Declined; keep existing manual resource actions and connection setup |
+| 10 | NUI preview, mock messages and Lua/NUI contract navigation | Implemented; local built ui_page preview, JSON messages and workspace/resource presets, fetch/XHR callback mocks, bounded activity and indexed Lua handler navigation. Formatting/lint, 102 Rust tests, full VS Code suite including 17 NUI tests and actual iframe readiness, and wide/narrow browser checks pass. Roughly 59 KiB JavaScript loaded on demand and 34 KiB additional Windows server code; no new dependencies |
+| 11 | Game-reference catalogs and utilities: hashes, colors, controls, flags, JSON/Lua data conversion | Implemented; offline joaat hashes (hex/signed/unsigned), RGB/hex colors and JSON-to-Lua conversion with editable preview and guarded literal insertion. Full VS Code suite including 11 utility tests and real webview target delivery, plus wide/narrow browser checks pass. Roughly 48 KiB JavaScript loaded on demand; reuses the existing JSON parser and reference catalogs |
+| 12 | Asset previews, references and health checks | Implemented; resource inventory, DDS and supported Legacy/Gen9 RSC7 YTD texture previews, browser media, metadata, exact per-asset source references and bounded health checks. RSC8/encrypted/unsupported formats show explicit limits; no 3D decoder. Full VS Code suite including 18 asset tests, real webview rendering, and wide/narrow browser checks pass. Roughly 75 KiB on-demand JavaScript including one pinned GPL-compatible BCn decoder |
+| 13 | Profiler capture/import/comparison with links to Lua code | Skipped for now at user request |
+| 14 | Structured read-only tools for coding assistants | Implemented; seven tools through VS Code LM tools, a versioned public API and portable stdio MCP, with explicit index refresh, scope/trust/cancellation checks and bounded diagnostic/reference inspection. Full VS Code suite including 9 assistant tests and a real MCP child, 115 language-server tests, 48 shared-analysis tests and strict Rust lint pass. Roughly 33 KiB adapter/MCP JavaScript; items 12 and 14 together add 269 KiB to the Windows server binary. Setup remains explicit; no assistant configuration is rewritten |
+| 15 | Packaging and release builder | Declined |
+| 16 | Additional scripting-language coverage | Declined; Lua focus |
+
+Every proposal should state what the user will see, how data is maintained, and
+its effect on extension size/startup. Prefer shared existing indexes/data and
+load substantial UI or asset features only when used. Other native argument
+families, general type-analysis improvements, full debugging and RedM support
+need their own scope decision rather than being included implicitly.
