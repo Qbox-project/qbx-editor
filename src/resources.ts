@@ -33,6 +33,13 @@ function isManifest(uri: vscode.Uri): boolean {
 export class ResourceIndex implements vscode.Disposable {
     private readonly changed = new vscode.EventEmitter<readonly Resource[]>();
     readonly onDidChange = this.changed.event;
+    private readonly foldersChanged = new vscode.EventEmitter<void>();
+    /**
+     * A folder appeared, vanished or was renamed inside a root. The language server only watches
+     * files by glob, so a resource dropped into or removed from the workspace is invisible to its
+     * index unless someone reindexes.
+     */
+    readonly onDidChangeFolders = this.foldersChanged.event;
     readonly ready: Promise<void>;
 
     private readonly subscriptions: vscode.Disposable[] = [];
@@ -66,6 +73,7 @@ export class ResourceIndex implements vscode.Disposable {
             vscode.workspace.onDidDeleteFiles((event) => this.onFileOperation(event.files)),
             vscode.workspace.onDidRenameFiles((event) => this.onFileOperation(event.files.flatMap((file) => [file.oldUri, file.newUri]))),
         );
+        this.subscriptions.push(this.foldersChanged);
         this.ready = this.refresh();
     }
 
@@ -224,7 +232,16 @@ export class ResourceIndex implements vscode.Disposable {
     private onFileOperation(uris: readonly vscode.Uri[]): void {
         if (uris.some((uri) => this.accepts(uri))) {
             this.scheduleRefresh();
+            // Explorer operations move whole folders at once; their contents get no file events.
+            if (uris.some((uri) => this.accepts(uri) && !path.posix.extname(uri.path))) {
+                this.foldersChanged.fire();
+            }
         }
+    }
+
+    /** A deleted path without an extension is most likely a folder; its files emit no events. */
+    private looksLikeFolder(uri: vscode.Uri): boolean {
+        return !path.posix.extname(uri.path) || this.resources.some((resource) => contains(uri, resource.folder));
     }
 
     private createWatchers(): void {
@@ -243,12 +260,21 @@ export class ResourceIndex implements vscode.Disposable {
                     void this.stat(uri).then((stat) => {
                         if (stat && stat.type & vscode.FileType.Directory) {
                             this.scheduleRefresh();
+                            if (!this.disposed) {
+                                this.foldersChanged.fire();
+                            }
                         }
                     }).catch(() => {});
                 }
             }), watcher.onDidDelete((uri) => {
-                if (this.accepts(uri) && (isManifest(uri) || this.resources.some((resource) => contains(uri, resource.folder)))) {
+                if (!this.accepts(uri)) {
+                    return;
+                }
+                if (isManifest(uri) || this.resources.some((resource) => contains(uri, resource.folder))) {
                     this.scheduleRefresh();
+                }
+                if (this.looksLikeFolder(uri)) {
+                    this.foldersChanged.fire();
                 }
             }));
         }
