@@ -24,6 +24,9 @@ const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ih
 let client: LanguageClient | undefined;
 let statusItem: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
+let reindexTimer: ReturnType<typeof setTimeout> | undefined;
+let reindexRunning = false;
+let reindexRequested = false;
 
 export async function activate(context: vscode.ExtensionContext): Promise<import('./assistantVscode.js').AssistantApi> {
     output = vscode.window.createOutputChannel('Qbox Lua');
@@ -32,6 +35,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     context.subscriptions.push(output, statusItem);
     const resourceControls = new ResourceControls(context);
     context.subscriptions.push(resourceControls);
+    let discovered = false;
+    void resourceControls.resourceIndex.ready.then(() => { discovered = true; }, () => { discovered = true; });
     const request = async <T>(method: string, params: unknown, token?: vscode.CancellationToken): Promise<T> => {
         if (!client || client.state !== State.Running) {
             throw new Error('The Qbox Lua language server is not running. Use Qbox Lua: Restart Language Server, then retry.');
@@ -60,6 +65,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     context.subscriptions.push({ dispose: () => { extraToolsDisposed = true; utilities?.dispose(); assets?.dispose(); } });
 
     context.subscriptions.push(
+        { dispose: () => { if (reindexTimer) { clearTimeout(reindexTimer); reindexTimer = undefined; } } },
+        // The server watches Lua files by glob, so a resource folder that is dropped in, renamed or
+        // removed only reaches its index through an explicit reindex. The initial discovery is not
+        // a change: the server scans the same folders itself on startup.
+        resourceControls.resourceIndex.onDidChange(() => { if (discovered) { scheduleReindex('resource folders changed'); } }),
+        resourceControls.resourceIndex.onDidChangeFolders(() => { if (discovered) { scheduleReindex('a folder changed'); } }),
         vscode.commands.registerCommand('qbxLua.restartServer', () => restart(context)),
         vscode.commands.registerCommand('qbxLua.reindex', reindex),
         vscode.commands.registerCommand('qbxLua.showSnippets', () => snippetBrowser.show()),
@@ -281,6 +292,41 @@ async function refreshStatus(): Promise<void> {
     const [icon, explanation] = SIDE_LABELS[info.side] ?? ['$(check)', ''];
     const resource = info.resource ? `${info.resource} · ` : '';
     setStatus(`${icon} ${info.side}`, `Qbox Lua · ${resource}${info.side}: ${explanation}\n${indexed}`);
+}
+
+/** Coalesces folder-level changes into one background reindex once the file system settles. */
+function scheduleReindex(reason: string): void {
+    if (reindexTimer) {
+        clearTimeout(reindexTimer);
+    }
+    reindexTimer = setTimeout(() => {
+        reindexTimer = undefined;
+        void reindexInBackground(reason);
+    }, 1500);
+}
+
+async function reindexInBackground(reason: string): Promise<void> {
+    if (reindexRunning) {
+        reindexRequested = true;
+        return;
+    }
+    if (!client || client.state !== State.Running) {
+        return;
+    }
+    reindexRunning = true;
+    try {
+        const result = await client.sendRequest<{ files: number; resources: number; millis: number }>('qbx/reindex');
+        output.appendLine(`reindexed because ${reason}: ${result.files} files in ${result.resources} resources (${result.millis} ms)`);
+        await refreshStatus();
+    } catch (error) {
+        output.appendLine(`reindex after ${reason} failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        reindexRunning = false;
+        if (reindexRequested) {
+            reindexRequested = false;
+            scheduleReindex(reason);
+        }
+    }
 }
 
 async function reindex(): Promise<void> {

@@ -337,6 +337,34 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'resource folders that appear or vanish on disk reach the language index without a manual reindex',
+        async () => {
+            const extension = vscode.extensions.getExtension('qbox.qbx-lua');
+            assert.ok(extension?.isActive, 'extension should be active');
+            const api = extension.exports as { call(name: string, input: unknown): Promise<{ data: { total: number } }> };
+            const folder = workspaceFile('probe_dropped_in');
+            const script = vscode.Uri.joinPath(folder, 'client', 'main.lua');
+            const listed = async (): Promise<number> => (await api.call('qbx_list_resources', { query: 'probe_dropped_in' })).data.total;
+            assert.equal(await listed(), 0);
+            // Plain file-system writes, like unzipping a download or a git checkout: no editor events.
+            const fs = await import('node:fs/promises');
+            await fs.mkdir(path.join(folder.fsPath, 'client'), { recursive: true });
+            try {
+                await fs.writeFile(path.join(folder.fsPath, 'fxmanifest.lua'), "fx_version 'cerulean'\ngame 'gta5'\nlua54 'yes'\nclient_script 'client/main.lua'\n");
+                await fs.writeFile(script.fsPath, 'ProbeDroppedIn = DoesNotExistAnywhere()\n');
+                await waitFor('the new resource in the server index', async () => ((await listed()) === 1 ? true : undefined), 30000);
+                await waitFor('workspace diagnostics for the new script', () => {
+                    const found = vscode.languages.getDiagnostics(script).filter((d) => d.source === 'qbx-lint');
+                    return found.length > 0 ? found : undefined;
+                }, 30000);
+            } finally {
+                await fs.rm(folder.fsPath, { recursive: true, force: true });
+            }
+            await waitFor('the removed resource to leave the server index', async () => ((await listed()) === 0 ? true : undefined), 30000);
+            assert.equal(vscode.languages.getDiagnostics(script).length, 0, 'diagnostics of the removed script are cleared');
+        },
+    ],
+    [
         'go to definition crosses resources',
         async () => {
             const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));

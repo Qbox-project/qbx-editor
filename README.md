@@ -142,7 +142,9 @@ not upload files, start FXServer itself, or automatically restart on save.
 
 Discovery follows manifest and folder creation, renaming and deletion, supports
 multiple workspace roots, and excludes `node_modules`, `.git`, `vendor` and
-`.vscode-test`. Runtime actions require a trusted workspace. In Remote SSH/WSL,
+`.vscode-test`. When a resource folder appears, is renamed or is removed, the
+language index is refreshed as well, so a downloaded resource or a `git checkout`
+needs no manual reindex. Runtime actions require a trusted workspace. In Remote SSH/WSL,
 the connection originates from the remote extension host; virtual filesystem
 workspaces are not supported for resource controls.
 
