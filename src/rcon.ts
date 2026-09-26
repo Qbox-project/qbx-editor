@@ -113,14 +113,18 @@ export async function sendRconCommand(options: RconCommandOptions): Promise<stri
         }, timeoutMs);
         signal?.addEventListener('abort', cancel, { once: true });
 
-        lookup(host, (error, address, family) => {
+        // FXServer listens on 0.0.0.0 by default, so a name such as localhost that resolves to
+        // both ::1 and 127.0.0.1 (Windows lists ::1 first) is reached over IPv4 when possible.
+        lookup(host, { all: true }, (error, addresses) => {
             if (settled) {
                 return;
             }
-            if (error) {
+            const chosen = error || !addresses.length ? undefined : (addresses.find((entry) => entry.family === 4) ?? addresses[0]);
+            if (!chosen) {
                 finish(new RconError('network', 'Could not resolve the RCON server hostname.'));
                 return;
             }
+            const { address, family } = chosen;
             socket = dgram.createSocket(family === 6 ? 'udp6' : 'udp4');
             socket.on('error', () => finish(new RconError('network', 'Could not communicate with the RCON server. The command was not retried.')));
             socket.on('message', (message) => {

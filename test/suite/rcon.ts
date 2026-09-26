@@ -96,6 +96,12 @@ export async function runRconTests(): Promise<void> {
     }
 
     await withServer(async (server, port) => {
+        // Windows resolves localhost to ::1 first, where a default 0.0.0.0 endpoint is not listening.
+        server.on('message', (_packet, peer) => server.send(printPacket('IPv4 preferred'), peer.port, peer.address));
+        assert.equal(await sendRconCommand({ host: 'localhost', port, password: 'secret', command: 'echo test', timeoutMs: 1000 }), 'IPv4 preferred');
+    });
+
+    await withServer(async (server, port) => {
         server.on('message', (_packet, peer) => server.send(printPacket('IPv6 works'), peer.port, peer.address));
         assert.equal(await sendRconCommand({ host: '[::1]', port, password: 'secret', command: 'echo test', timeoutMs: 150 }), 'IPv6 works');
     }, '::1');
