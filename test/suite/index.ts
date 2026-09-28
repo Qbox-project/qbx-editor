@@ -201,6 +201,33 @@ const tests: Test[] = [
         },
     ],
     [
+        'Enter continues LuaCATS annotation lines and clears an empty one',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const editor = await vscode.window.showTextDocument(document);
+            const original = document.getText();
+            const cursor = () => `${editor.selection.active.line}:${editor.selection.active.character}`;
+            try {
+                await editor.edit((edit) => edit.insert(document.positionAt(original.length), '\n    ---@param event string'));
+                const line = document.lineCount - 1;
+                const end = document.lineAt(line).range.end;
+                editor.selection = new vscode.Selection(end, end);
+                await vscode.commands.executeCommand('type', { text: '\n' });
+                await waitFor('the ---@ continuation', () => (document.lineAt(line + 1).text === '    ---@' ? true : undefined));
+                assert.ok(editor.selection.active.isEqual(new vscode.Position(line + 1, 8)), `cursor after ---@, at ${cursor()}`);
+
+                await vscode.commands.executeCommand('type', { text: '\n' });
+                await waitFor('the bare ---@ to clear', () =>
+                    (document.lineCount === line + 2 && document.lineAt(line + 1).text.trim() === '' ? true : undefined));
+                assert.equal(editor.selection.active.line, line + 1, `cursor stays on the cleared line, at ${cursor()}`);
+            } finally {
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, original));
+                await document.save();
+            }
+        },
+    ],
+    [
         'framework callbacks expose local payloads and navigate to their own handlers',
         async () => {
             const server = await vscode.workspace.openTextDocument(workspaceFile('myresource/server/main.lua'));
