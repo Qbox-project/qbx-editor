@@ -2,6 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, State, TransportKind } from 'vscode-languageclient/node';
+import { luaQuote } from './luaQuote';
+import { registerManifestSnippetCompletions } from './manifestSnippets';
 import { ResourceControls } from './resourceControls';
 import { ReferenceBrowser } from './referenceBrowser';
 import { SnippetBrowser } from './snippetBrowser';
@@ -45,7 +47,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     };
     const referenceBrowser = new ReferenceBrowser(context.extensionUri, request);
     const snippetBrowser = new SnippetBrowser(context.extensionUri, context.globalStorageUri, request);
-    context.subscriptions.push(referenceBrowser, snippetBrowser);
+    context.subscriptions.push(referenceBrowser, snippetBrowser, registerManifestSnippetCompletions(context.extensionUri, request));
     let resourceWizard: import('./resourceWizard.js').ResourceWizard | undefined;
     let wizardDisposed = false;
     context.subscriptions.push({ dispose: () => { wizardDisposed = true; resourceWizard?.dispose(); } });
@@ -97,7 +99,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         vscode.commands.registerCommand('qbxLua.resources.create', async (uri?: unknown) => {
             const { ResourceWizard } = await import('./resourceWizard.js');
             if (wizardDisposed) { return; }
-            resourceWizard ??= new ResourceWizard();
+            resourceWizard ??= new ResourceWizard(() => luaQuote(request));
             await resourceWizard.show(uri);
         }),
         vscode.commands.registerCommand('qbxLua.resources.details', async (uri?: unknown) => {

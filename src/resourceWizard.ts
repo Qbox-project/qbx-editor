@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as vscode from 'vscode';
+import type { LuaQuote } from './luaQuote';
 import { RESOURCE_TEMPLATES, renderResourcePreview, resourceNameError, type ResourcePlan, type ResourceTemplateId } from './resourceTemplates';
 import type { ResourceDestination } from './resourceScaffold';
 import { runResourceWizardFlow, type ResourceWizardUi, type WizardDecision } from './resourceWizardFlow';
@@ -12,7 +13,8 @@ export class ResourceWizard implements vscode.Disposable {
     private readonly previews = new Map<string, string>();
     private readonly provider: vscode.Disposable;
 
-    constructor() {
+    /** `quote` gives the quote of the strings in a new manifest. */
+    constructor(private readonly quote: () => Promise<LuaQuote>) {
         this.provider = vscode.workspace.registerTextDocumentContentProvider('qbx-resource-preview', {
             provideTextDocumentContent: (uri) => this.previews.get(uri.toString()) ?? 'This resource preview has closed.',
         });
@@ -57,7 +59,8 @@ export class ResourceWizard implements vscode.Disposable {
             },
         };
         try {
-            await runResourceWizardFlow(ui, { initialParent: argument, signal: operation.signal });
+            // Asked while the prompts are open, so a busy language server does not delay them.
+            await runResourceWizardFlow(ui, { initialParent: argument, signal: operation.signal, quote: this.quote() });
         } catch (error) {
             if (!operation.signal.aborted) {
                 void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));

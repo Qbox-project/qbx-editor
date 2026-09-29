@@ -1,11 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { luaQuote, withQuote } from './luaQuote';
+import { loadManifestSnippets } from './manifestSnippets';
 import { LuaEditorTargetTracker, type LuaInsertionTarget } from './referenceBrowser';
 import type { ReferenceRequest } from './referenceTypes';
 import { getSnippetHtml } from './snippetHtml';
 import { SnippetSession } from './snippetSession';
-import { parseSnippetFile, snippetNameError, SnippetStore, type SnippetSource } from './snippetStore';
+import { snippetNameError, SnippetStore, type SnippetSource } from './snippetStore';
 import type { RecipeSnippet, SnippetCatalog, SnippetWebviewMessage } from './snippetTypes';
 
 type ManageAction = Extract<SnippetWebviewMessage, { type: 'manage' }>['action'];
@@ -135,8 +137,9 @@ export class SnippetBrowser implements vscode.Disposable {
     async loadCatalog(): Promise<SnippetCatalog> {
         const target = this.tracker.capture();
         const params = target?.document.uri.scheme === 'file' ? { uri: target.document.uri.toString() } : null;
-        const results = await Promise.allSettled([
-            this.request<unknown>('qbx/snippets', params), this.store.load(), this.manifestSnippets(),
+        const [results, quote] = await Promise.all([
+            Promise.allSettled([this.request<unknown>('qbx/snippets', params), this.store.load(), this.manifestSnippets()]),
+            luaQuote(this.request, target?.document.uri),
         ]);
         const items: RecipeSnippet[] = [];
         const issues: string[] = [];
@@ -148,7 +151,7 @@ export class SnippetBrowser implements vscode.Disposable {
             issues.push(server.status === 'rejected'
                 ? `Lua recipes: ${this.errorText(server.reason)}` : 'Lua recipes returned invalid data. Restart the language server and refresh.');
         }
-        if (manifest.status === 'fulfilled') { items.push(...manifest.value); }
+        if (manifest.status === 'fulfilled') { items.push(...manifest.value.map((item) => ({ ...item, body: withQuote(item.body, quote) }))); }
         else { issues.push(`Manifest recipes: ${this.errorText(manifest.reason)}`); }
         if (custom.status === 'fulfilled') {
             // Source IDs stay in the extension host. Webview actions only submit the opaque snippet ID.
@@ -159,15 +162,11 @@ export class SnippetBrowser implements vscode.Disposable {
     }
 
     private manifestSnippets(): Promise<RecipeSnippet[]> {
-        this.manifests ??= Promise.resolve(vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'snippets', 'fxmanifest.json'))).then((bytes) => {
-            const parsed = parseSnippetFile(Buffer.from(bytes).toString('utf8'));
-            if (parsed.issues.length) { throw new Error(parsed.issues.join(' ')); }
-            return parsed.snippets.map((item) => ({
-                id: `builtin:manifest:${encodeURIComponent(item.name)}`, label: item.name,
-                description: item.description, body: item.body, prefix: item.prefix,
-                source: 'builtin' as const, sourceLabel: 'Built-in · Resource manifests',
-            }));
-        });
+        this.manifests ??= loadManifestSnippets(this.extensionUri).then((snippets) => snippets.map((item) => ({
+            id: `builtin:manifest:${encodeURIComponent(item.name)}`, label: item.name,
+            description: item.description, body: item.body, prefix: item.prefix,
+            source: 'builtin' as const, sourceLabel: 'Built-in · Resource manifests',
+        })));
         return this.manifests;
     }
 

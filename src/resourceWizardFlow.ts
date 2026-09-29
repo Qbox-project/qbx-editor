@@ -1,4 +1,5 @@
 import type * as vscode from 'vscode';
+import type { LuaQuote } from './luaQuote';
 import { createResourcePlan, type ResourcePlan, type ResourceTemplateId } from './resourceTemplates';
 import { createResourceScaffold, validateResourceDestination, type ResourceDestination } from './resourceScaffold';
 
@@ -19,10 +20,13 @@ export interface ResourceWizardOperations {
     create(parent: vscode.Uri, plan: ResourcePlan, options: { destination: ResourceDestination; signal?: AbortSignal }): Promise<ResourceCreationResult>;
 }
 
-/** Prompts only collect a plan; creation is reached exclusively through its matching preview. */
+/**
+ * Prompts only collect a plan; creation is reached exclusively through its matching preview.
+ * `quote` is the quote of the manifest's strings, awaited once the plan is first needed.
+ */
 export async function runResourceWizardFlow(
     ui: ResourceWizardUi,
-    options: { initialParent?: vscode.Uri; signal?: AbortSignal } = {},
+    options: { initialParent?: vscode.Uri; signal?: AbortSignal; quote?: Promise<LuaQuote> } = {},
     operations: ResourceWizardOperations = { validate: validateResourceDestination, create: createResourceScaffold },
 ): Promise<ResourceCreationResult | undefined> {
     let parent = options.initialParent;
@@ -50,7 +54,7 @@ export async function runResourceWizardFlow(
         let plan: ResourcePlan;
         let destination: ResourceDestination;
         try {
-            plan = createResourcePlan({ name, templateId: template });
+            plan = createResourcePlan({ name, templateId: template, quote: await options.quote });
             destination = await operations.validate(parent, plan.name);
         } catch (error) {
             if (cancelled()) { return undefined; }

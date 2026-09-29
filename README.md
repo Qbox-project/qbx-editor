@@ -427,6 +427,10 @@ The extension registers itself as the default Lua formatter. Without a `qbxlint.
 formatter wraps lines longer than 120 columns; projects that keep long lines should raise
 `line_width` before enabling format on save, or the first save reflows every long statement.
 
+`quote_style` also sets the quotes that built-in snippets, completions and new resource manifests
+write. With `preserve`, snippets follow the quote most strings of the file already use, and new
+resource manifests use single quotes.
+
 See the [configuration reference](https://github.com/Qbox-project/qbx-lua/blob/main/docs/reference.md)
 and [rule list](https://github.com/Qbox-project/qbx-lua/blob/main/docs/rules.md).
 

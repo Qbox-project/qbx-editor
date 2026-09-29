@@ -100,6 +100,23 @@ const tests: Test[] = [
             }
         }
     }],
+    ['resource manifests write their strings in the quote the wizard is given', async () => withTemporaryRoot(async (root) => {
+        const manifest = (plan: ResourcePlan) => plan.files.find((file) => file.path === 'fxmanifest.lua')!.content;
+        const single = createResourcePlan({ name: 'example', templateId: 'qbox' });
+        const double = createResourcePlan({ name: 'example', templateId: 'qbox', quote: '"' });
+        assert.equal(single.quote, "'");
+        assert.match(manifest(double), /^fx_version "cerulean"$/m);
+        assert.equal(manifest(double), manifest(single).replaceAll("'", '"'));
+        assert.deepEqual(double.files.slice(1), single.files.slice(1), 'only the manifest has strings');
+
+        const h = wizardHarness();
+        await runResourceWizardFlow(h.ui, { quote: Promise.resolve('"') }, h.operations);
+        assert.equal(h.creations[0].plan.quote, '"');
+        const scaffolder = new ResourceScaffolder();
+        const destination = await scaffolder.validateResourceDestination(root, double.name);
+        const created = await scaffolder.createResourceScaffold(root, double, { destination });
+        assert.equal(await fs.readFile(created.manifest.fsPath, 'utf8'), manifest(double), 'the reviewed quote is the one written');
+    })],
     ['resource previews contain exact file contents and keep hostile destination text inert', async () => {
         const { marked } = await import('marked');
         const plan = createResourcePlan({ name: 'example', templateId: 'qbox' });
