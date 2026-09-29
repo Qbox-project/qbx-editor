@@ -141,12 +141,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
                 void refreshStatus();
             }
         }),
+        vscode.workspace.onDidChangeTextDocument(suggestAnnotationTags),
     );
 
     await start(context);
     warnAboutOtherLuaExtensions();
     const { registerAssistantTools } = await import('./assistantVscode.js');
     return registerAssistantTools(context, request);
+}
+
+/**
+ * Opens the annotation tag list when the first letter is typed after `---@`. The `---@` that Enter
+ * adds to an annotation block opens no list, so Enter on it can still clear it, and VS Code does
+ * not suggest while typing in comments.
+ */
+function suggestAnnotationTags(event: vscode.TextDocumentChangeEvent): void {
+    const [change] = event.contentChanges;
+    if (event.document.languageId !== 'lua' || event.contentChanges.length !== 1 || !/^[A-Za-z]$/.test(change.text)) {
+        return;
+    }
+    const typed = event.document.lineAt(change.range.start.line).text.slice(0, change.range.start.character + 1);
+    if (/^[ \t]*---@[A-Za-z]$/.test(typed) && vscode.window.activeTextEditor?.document === event.document) {
+        void vscode.commands.executeCommand('editor.action.triggerSuggest');
+    }
 }
 
 export async function deactivate(): Promise<void> {

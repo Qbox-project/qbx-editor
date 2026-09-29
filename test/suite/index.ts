@@ -301,6 +301,33 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'typing a letter after ---@ lists the annotation tags',
+        async () => {
+            assert.equal(vscode.workspace.getConfiguration('editor', { languageId: 'lua' }).get('suggest.preview'), true);
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const editor = await vscode.window.showTextDocument(document);
+            const original = document.getText();
+            try {
+                await editor.edit((edit) => edit.insert(document.positionAt(original.length), '\n---@param event string'));
+                const line = document.lineCount - 1;
+                const end = document.lineAt(line).range.end;
+                editor.selection = new vscode.Selection(end, end);
+                await vscode.commands.executeCommand('type', { text: '\n' });
+                await waitFor('the ---@ continuation', () => (document.lineAt(line + 1).text === '---@' ? true : undefined));
+                await vscode.commands.executeCommand('type', { text: 'r' });
+                await waitFor('the return tag to be accepted', async () => {
+                    await vscode.commands.executeCommand('acceptSelectedSuggestion');
+                    return document.lineAt(line + 1).text.startsWith('---@return ') ? true : undefined;
+                });
+            } finally {
+                await vscode.commands.executeCommand('hideSuggestWidget');
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, original));
+                await document.save();
+            }
+        },
+    ],
+    [
         'annotation highlighting colors callback roles and side attributes',
         async () => {
             const fs = await import('node:fs/promises');
