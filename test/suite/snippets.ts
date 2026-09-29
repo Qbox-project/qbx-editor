@@ -268,13 +268,24 @@ const tests: Test[] = [
         });
         try {
             const catalog = await browser.loadCatalog();
-            assert.deepEqual(requested, ['qbx/snippets']);
+            assert.deepEqual(requested, ['qbx/snippets', 'qbx/quote']);
             assert.equal(catalog.items.find((item) => item.source === 'personal' && item.label === 'Offline personal')?.body, 'print("${1:offline}")$0');
             const manifests = catalog.items.filter((item) => item.id.startsWith('builtin:manifest:'));
             assert.equal(manifests.length, 2, 'manifest recipes must not depend on a running language server');
-            assert.ok(manifests.some((item) => item.body.includes("fx_version 'cerulean'")));
+            assert.ok(manifests.some((item) => item.body.includes("fx_version 'cerulean'")), 'an offline server leaves the default quote');
             assert.ok(catalog.issues.some((issue) => issue.includes('Test language server is offline')));
             assert.equal(await fs.readFile(personalSource.uri.fsPath, 'utf8'), original, 'browsing must not rewrite the library');
+        } finally { browser.dispose(); }
+    })],
+    ['manifest recipes take the quote the language server picks', async () => withStore(async ({ global }) => {
+        const extension = vscode.extensions.getExtension('qbox.qbx-lua');
+        assert.ok(extension);
+        const browser = new SnippetBrowser(extension.extensionUri, global, async <T>(method: string): Promise<T> =>
+            (method === 'qbx/quote' ? '"' : []) as T);
+        try {
+            const manifests = (await browser.loadCatalog()).items.filter((item) => item.id.startsWith('builtin:manifest:'));
+            assert.ok(manifests.some((item) => item.body.includes('fx_version "cerulean"')), manifests.map((item) => item.body).join('\n'));
+            assert.ok(manifests.every((item) => !item.body.includes("'")));
         } finally { browser.dispose(); }
     })],
     ['snippet library changes notify the browser and saved edits become available', async () => withStore(async ({ store }) => {

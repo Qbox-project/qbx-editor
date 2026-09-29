@@ -424,6 +424,33 @@ function AwaitEditorProbe(name, ...) end
         },
     ],
     [
+        'manifest snippets write strings in the quote of the document',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const editor = await vscode.window.showTextDocument(document);
+            const original = document.getText();
+            const manifestSnippet = async (text: string): Promise<string> => {
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, text));
+                const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+                    'vscode.executeCompletionItemProvider', document.uri, document.positionAt(text.length),
+                );
+                const item = list.items.find((item) => item.kind === vscode.CompletionItemKind.Snippet
+                    && (typeof item.label === 'string' ? item.label : item.label.label) === 'fxmanifest');
+                assert.ok(item?.insertText instanceof vscode.SnippetString, `no fxmanifest snippet in ${list.items.length} items`);
+                return item.insertText.value;
+            };
+            try {
+                assert.match(await manifestSnippet("local label = 'x'\nfxmanif"), /^fx_version 'cerulean'$/m);
+                assert.match(await manifestSnippet('local label = "x"\nfxmanif'), /^fx_version "cerulean"$/m);
+            } finally {
+                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                await editor.edit((edit) => edit.replace(whole, original));
+                await document.save();
+            }
+        },
+    ],
+    [
         'diagnostics come from qbx-lint with manifest context',
         async () => {
             const uri = workspaceFile('myresource/server/main.lua');

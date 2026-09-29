@@ -4,7 +4,8 @@
 generates exactly `fxmanifest.lua`, `shared/config.lua`, `client/main.lua` and
 `server/main.lua`. The wizard previews all four files before creating a new
 folder. Client and server entry files contain comments; the shared file creates
-an empty `Config` table in each runtime.
+an empty `Config` table in each runtime. Manifest strings use the workspace's
+`quote_style` from `qbxlint.toml`, and single quotes when it is `preserve` or unset.
 
 | Template | Shared imports, in load order | Direct resource dependencies |
 | --- | --- | --- |

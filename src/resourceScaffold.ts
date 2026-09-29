@@ -220,7 +220,7 @@ export class ResourceScaffolder {
     }
 
     private verifyPlan(plan: ResourcePlan): ResourcePlan {
-        const expected = createResourcePlan({ name: plan.name, templateId: plan.templateId });
+        const expected = createResourcePlan({ name: plan.name, templateId: plan.templateId, quote: plan.quote });
         if (plan.files.length !== expected.files.length || plan.files.some((file, index) => file.path !== expected.files[index].path || file.content !== expected.files[index].content)) {
             throw new Error('The resource files no longer match the template preview. Generate a new preview.');
         }

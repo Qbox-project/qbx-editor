@@ -1,3 +1,5 @@
+import type { LuaQuote } from './luaQuote';
+
 export type ResourceTemplateId = 'lua' | 'ox_lib' | 'qbox';
 
 export interface ResourceTemplate {
@@ -11,6 +13,7 @@ export interface ResourcePlan {
     readonly name: string;
     readonly templateId: ResourceTemplateId;
     readonly templateLabel: string;
+    readonly quote: LuaQuote;
     readonly dependencies: readonly string[];
     readonly files: readonly { readonly path: string; readonly content: string }[];
 }
@@ -32,12 +35,17 @@ export function resourceNameError(name: string): string | undefined {
     return undefined;
 }
 
-/** Pure, deterministic starter contents. See docs/resource-templates.md for provenance. */
-export function createResourcePlan(options: { name: string; templateId: ResourceTemplateId }): ResourcePlan {
+/**
+ * Pure, deterministic starter contents, with `quote` around the manifest's strings (`'` by default).
+ * See docs/resource-templates.md for provenance.
+ */
+export function createResourcePlan(options: { name: string; templateId: ResourceTemplateId; quote?: LuaQuote }): ResourcePlan {
     const invalidName = resourceNameError(options.name);
     if (invalidName) { throw new Error(invalidName); }
     const template = RESOURCE_TEMPLATES.find((candidate) => candidate.id === options.templateId);
     if (!template) { throw new Error('Choose a supported resource template.'); }
+    const quote = options.quote ?? "'";
+    const string = (text: string) => `${quote}${text}${quote}`;
 
     const sharedScripts = [
         ...(template.id !== 'lua' ? ['@ox_lib/init.lua'] : []),
@@ -45,22 +53,22 @@ export function createResourcePlan(options: { name: string; templateId: Resource
         'shared/config.lua',
     ];
     const manifest = [
-        "fx_version 'cerulean'",
-        "game 'gta5'",
+        `fx_version ${string('cerulean')}`,
+        `game ${string('gta5')}`,
         '',
-        `name '${options.name}'`,
-        "version '0.1.0'",
+        `name ${string(options.name)}`,
+        `version ${string('0.1.0')}`,
         '',
         'shared_scripts {',
-        ...sharedScripts.map((script) => `    '${script}',`),
+        ...sharedScripts.map((script) => `    ${string(script)},`),
         '}',
         '',
-        "client_script 'client/main.lua'",
-        "server_script 'server/main.lua'",
+        `client_script ${string('client/main.lua')}`,
+        `server_script ${string('server/main.lua')}`,
         ...(template.dependencies.length ? [
             '',
             'dependencies {',
-            ...template.dependencies.map((dependency) => `    '${dependency}',`),
+            ...template.dependencies.map((dependency) => `    ${string(dependency)},`),
             '}',
         ] : []),
         '',
@@ -72,6 +80,7 @@ export function createResourcePlan(options: { name: string; templateId: Resource
         name: options.name,
         templateId: template.id,
         templateLabel: template.label,
+        quote,
         dependencies: [...template.dependencies],
         files: [
             { path: 'fxmanifest.lua', content: manifest },
