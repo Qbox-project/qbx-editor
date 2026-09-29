@@ -351,6 +351,13 @@
         "injectTo": [
           "source.lua"
         ]
+      },
+      {
+        "scopeName": "luacats.documentation.injection",
+        "path": "./syntaxes/luacats-documentation.injection.json",
+        "injectTo": [
+          "source.lua"
+        ]
       }
     ],
     "jsonValidation": [
