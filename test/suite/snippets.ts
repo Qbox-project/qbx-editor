@@ -100,7 +100,9 @@ async function withStore(body: (fixture: { store: SnippetStore; root: string; gl
         }
         assert.ok(path.resolve(root).startsWith(`${path.resolve(os.tmpdir())}${path.sep}`));
         assert.ok(path.basename(root).startsWith('qbx-snippet-tests-'));
-        await fs.rm(root, { recursive: true, force: true });
+        // Showing an editor makes the built-in Git extension run `git rev-parse` in the file's folder;
+        // Windows cannot remove a process's working directory until it exits, so retry EBUSY briefly.
+        await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
 }
 
