@@ -206,6 +206,19 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     };
 
     client = new LanguageClient('qbxLua', 'Qbox Lua', serverOptions, clientOptions);
+    // Lists the commands VS Code runs for the server, the way rust-analyzer's client does, so a
+    // completed callback wrapper call can reopen suggestions with the registered names.
+    client.registerFeature({
+        fillClientCapabilities(capabilities) {
+            const experimental = (capabilities.experimental ?? {}) as Record<string, unknown>;
+            capabilities.experimental = { ...experimental, commands: { commands: ['editor.action.triggerSuggest'] } };
+        },
+        initialize() {},
+        getState() {
+            return { kind: 'static' };
+        },
+        clear() {},
+    });
     client.onDidChangeState((event) => {
         if (event.newState === State.Running) {
             void refreshStatus();

@@ -301,6 +301,41 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'callback wrapper call snippets reopen suggestions in the name',
+        async () => {
+            const shared = await vscode.workspace.openTextDocument(workspaceFile('myresource/shared/config.lua'));
+            const client = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const originals = [shared, client].map((document) => ({ document, text: document.getText() }));
+            const edit = new vscode.WorkspaceEdit();
+            edit.insert(shared.uri, shared.positionAt(shared.getText().length), `
+---@callback await
+---@param name string
+---@param ... any
+function AwaitEditorProbe(name, ...) end
+`);
+            edit.insert(client.uri, client.positionAt(client.getText().length), '\nAwaitEditorPro');
+            try {
+                assert.ok(await vscode.workspace.applyEdit(edit));
+                const position = client.positionAt(client.getText().length);
+                const snippet = await waitFor('the wrapper call snippet', async () => {
+                    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+                        'vscode.executeCompletionItemProvider', client.uri, position,
+                    );
+                    return result?.items.find((item) => item.insertText instanceof vscode.SnippetString
+                        && item.insertText.value === "AwaitEditorProbe('$1'$2)");
+                });
+                assert.equal(snippet.command?.command, 'editor.action.triggerSuggest');
+            } finally {
+                const restore = new vscode.WorkspaceEdit();
+                for (const { document, text } of originals) {
+                    restore.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), text);
+                }
+                assert.ok(await vscode.workspace.applyEdit(restore));
+                await Promise.all(originals.map(({ document }) => document.save()));
+            }
+        },
+    ],
+    [
         'snippets are offered while typing a statement',
         async () => {
             const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
