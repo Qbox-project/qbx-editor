@@ -37,7 +37,7 @@ The language server is included. You can work on a single resource or an entire
 | Navigation and rename | Follow definitions and references across your workspace and rename supported symbols. |
 | Formatting | Format Lua with shared project settings in `qbxlint.toml`. |
 | Syntax and editor hints | Read CfxLua backtick hashes, LuaCATS annotations, semantic highlighting, signature help and parameter hints. |
-| Annotation typing | Press Enter after a `---@param` line to start the next one with `---@`; Enter on a bare `---@` clears it. |
+| Annotation typing | Press Enter after a `---@param` line to start the next one with `---@`; Enter on a bare `---@` clears it. Typing a letter after `---@` lists the tags, previewing the rest of the selected one in gray; Tab accepts it. |
 | Framework callbacks | Complete QB-Core/ESX callback names, find server handlers and see payload hints from local Lua code. |
 | Snippet browser | Preview and insert Lua recipes, manifest templates, and personal or workspace snippets. |
 | Resource wizard | Preview and create a new resource from a plain Lua, ox_lib or Qbox starter. |
