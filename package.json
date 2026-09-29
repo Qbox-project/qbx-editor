@@ -379,7 +379,8 @@
       "[lua]": {
         "editor.semanticHighlighting.enabled": true,
         "editor.defaultFormatter": "qbox.qbx-lua",
-        "editor.formatOnType": true
+        "editor.formatOnType": true,
+        "editor.suggest.preview": true
       }
     },
     "semanticTokenScopes": [
