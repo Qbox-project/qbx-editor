@@ -301,6 +301,41 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'annotation highlighting colors callback roles and side attributes',
+        async () => {
+            const fs = await import('node:fs/promises');
+            const os = await import('node:os');
+            const file = vscode.Uri.file(path.join(os.tmpdir(), `qbx-luacats-highlight-${process.pid}.lua`));
+            await fs.writeFile(file.fsPath, [
+                '---@callback register shop',
+                '---@class (exact, server) Account',
+                '---@field private (client) hud table',
+                '---@overload (client) fun(id: integer)',
+            ].join('\n'));
+            try {
+                const tokens = await vscode.commands.executeCommand<{ c: string; t: string }[]>('_workbench.captureSyntaxTokens', file);
+                const scopes = (text: string) => tokens.find((token) => token.c.trim() === text)?.t ?? '';
+                // VS Code's own Lua grammar colors the rest of each line, as before.
+                for (const [text, scope] of [
+                    ['@callback', 'storage.type.annotation.luacats'],
+                    ['register', 'storage.modifier.luacats'],
+                    ['shop', 'entity.name.namespace.luacats'],
+                    ['exact, server', 'storage.modifier.attribute.luacats'],
+                    ['Account', 'support.class.lua'],
+                    ['private', 'storage.modifier.luacats'],
+                    ['client', 'storage.modifier.attribute.luacats'],
+                    ['hud', 'entity.name.variable.lua'],
+                    ['integer', 'support.type.lua'],
+                ]) {
+                    const seen = tokens.map((token) => `${JSON.stringify(token.c)} ${token.t}`).join('\n');
+                    assert.ok(scopes(text).split(' ').includes(scope), `${text}: expected ${scope} in "${scopes(text)}"\n${seen}`);
+                }
+            } finally {
+                await fs.rm(file.fsPath, { force: true });
+            }
+        },
+    ],
+    [
         'callback wrapper call snippets reopen suggestions in the name',
         async () => {
             const shared = await vscode.workspace.openTextDocument(workspaceFile('myresource/shared/config.lua'));

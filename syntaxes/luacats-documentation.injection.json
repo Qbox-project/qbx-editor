@@ -1,0 +1,31 @@
+{
+  "scopeName": "luacats.documentation.injection",
+  "injectionSelector": "L:comment.line.double-dash.documentation.lua",
+  "patterns": [
+    { "include": "#callback" },
+    { "include": "#field-visibility" },
+    { "include": "#attributes" }
+  ],
+  "repository": {
+    "callback": {
+      "match": "(?<=---)[ \\t]*(@callback)[ \\t]+(register|await|trigger)\\b(?:[ \\t]+([A-Za-z_][\\w.\\-]*))?",
+      "captures": {
+        "1": { "name": "storage.type.annotation.luacats" },
+        "2": { "name": "storage.modifier.luacats" },
+        "3": { "name": "entity.name.namespace.luacats" }
+      }
+    },
+    "field-visibility": {
+      "match": "(?<=@field )(public|private|protected|package)\\b",
+      "name": "storage.modifier.luacats"
+    },
+    "attributes": {
+      "match": "(?<=@class |@alias |@enum |@field |@overload |public |private |protected |package )(\\()[ \\t]*([A-Za-z]+(?:[ \\t]*,[ \\t]*[A-Za-z]+)*)[ \\t]*(\\))",
+      "captures": {
+        "1": { "name": "punctuation.definition.attribute.begin.luacats" },
+        "2": { "name": "storage.modifier.attribute.luacats" },
+        "3": { "name": "punctuation.definition.attribute.end.luacats" }
+      }
+    }
+  }
+}
