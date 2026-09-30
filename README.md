@@ -443,7 +443,7 @@ Search for `qbxLua` in VS Code Settings.
 | `qbxLua.library` | `[]` | Extra dependency folders to index. |
 | `qbxLua.diagnostics.enable` | `true` | Show diagnostics. |
 | `qbxLua.diagnostics.workspace` | `true` | Include files that are not open. |
-| `qbxLua.diagnostics.rules` | `{}` | Override rule levels: `off`, `hint`, `info`, `warning` or `error`. |
+| `qbxLua.diagnostics.rules` | `{}` | Rule levels: `off`, `hint`, `info`, `warning` or `error`. The levels a `qbxlint.toml` sets take precedence. |
 | `qbxLua.inlayHints.enable` | `true` | Show parameter names beside literal arguments. |
 | `qbxLua.semanticTokens.enable` | `true` | Enable semantic highlighting. |
 | `qbxLua.warnAboutOtherLuaExtensions` | `true` | Warn about other active Lua language servers. |

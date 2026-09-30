@@ -95,7 +95,7 @@
               "error"
             ]
           },
-          "markdownDescription": "Override rule levels, e.g. `{ \"unused-argument\": \"off\", \"fivem/citizen-prefix\": \"warning\" }`. A `qbxlint.toml` in the workspace is honoured as well, so the editor and CI stay in sync."
+          "markdownDescription": "Rule levels, e.g. `{ \"unused-argument\": \"off\", \"fivem/citizen-prefix\": \"warning\" }`. The levels a `qbxlint.toml` in the workspace sets take precedence, so the editor and CI stay in sync."
         },
         "qbxLua.inlayHints.enable": {
           "type": "boolean",
