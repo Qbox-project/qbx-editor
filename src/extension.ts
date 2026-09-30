@@ -6,6 +6,7 @@ import { luaQuote } from './luaQuote';
 import { registerManifestSnippetCompletions } from './manifestSnippets';
 import { ResourceControls } from './resourceControls';
 import { ReferenceBrowser } from './referenceBrowser';
+import { SETTINGS_SCHEMA_SCHEME, SettingsSchemaProvider, type RuleInfo } from './settingsSchema';
 import { SnippetBrowser } from './snippetBrowser';
 
 interface ServerStatus {
@@ -26,6 +27,7 @@ const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ih
 let client: LanguageClient | undefined;
 let statusItem: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
+let settingsSchema: SettingsSchemaProvider;
 let reindexTimer: ReturnType<typeof setTimeout> | undefined;
 let reindexRunning = false;
 let reindexRequested = false;
@@ -35,6 +37,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
     statusItem.command = 'qbxLua.showStatus';
     context.subscriptions.push(output, statusItem);
+    // Registered before the server starts: a settings file that asks for these schemas is what activates the extension.
+    settingsSchema = new SettingsSchemaProvider();
+    context.subscriptions.push(settingsSchema, vscode.workspace.registerTextDocumentContentProvider(SETTINGS_SCHEMA_SCHEME, settingsSchema));
     const resourceControls = new ResourceControls(context);
     context.subscriptions.push(resourceControls);
     let discovered = false;
@@ -241,6 +246,7 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     client.onDidChangeState((event) => {
         if (event.newState === State.Running) {
             void refreshStatus();
+            void loadRules();
         } else if (event.newState === State.Stopped) {
             setStatus('$(error) Qbox Lua', 'The language server is not running. Click for details.');
         }
@@ -276,6 +282,12 @@ async function fetchStatus(): Promise<ServerStatus | undefined> {
         return undefined;
     }
     return client.sendRequest<ServerStatus>('qbx/status');
+}
+
+/** Hands the rules of the server that just started to the settings schema. A server without `qbx/rules` lists none. */
+async function loadRules(): Promise<void> {
+    const rules = await client?.sendRequest<RuleInfo[]>('qbx/rules').catch(() => undefined);
+    settingsSchema.update(Array.isArray(rules) ? rules : []);
 }
 
 function setStatus(text: string, tooltip: string): void {

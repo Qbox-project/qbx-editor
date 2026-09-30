@@ -48,7 +48,8 @@
     "onLanguageModelTool:qbx_diagnostics",
     "onLanguageModelTool:qbx_symbol_references",
     "onLanguageModelTool:qbx_search_reference",
-    "onLanguageModelTool:qbx_reference_detail"
+    "onLanguageModelTool:qbx_reference_detail",
+    "onFileSystem:qbx-lua"
   ],
   "contributes": {
     "configuration": {
@@ -367,6 +368,22 @@
           "**/qbox.qbx-lua/snippets.json"
         ],
         "url": "./snippets/qbx-lua-snippets.schema.json"
+      },
+      {
+        "fileMatch": [
+          "%APP_SETTINGS_HOME%/settings.json",
+          "%APP_SETTINGS_HOME%/profiles/*/settings.json",
+          "%MACHINE_SETTINGS_HOME%/settings.json",
+          "/.vscode/settings.json"
+        ],
+        "url": "qbx-lua://schemas/settings.json"
+      },
+      {
+        "fileMatch": [
+          "**/*.code-workspace",
+          "%APP_WORKSPACES_HOME%/*/workspace.json"
+        ],
+        "url": "qbx-lua://schemas/workspace.json"
       }
     ],
     "configurationDefaults": {
