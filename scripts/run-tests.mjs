@@ -11,7 +11,7 @@ if (compiled.status !== 0) {
     process.exit(compiled.status ?? 1);
 }
 
-const workspace = resolve(root, '..', 'qbx-lua-ls', 'tests', 'fixtures', 'resources');
+const workspace = resolve(root, '..', 'qbx-lint', 'crates', 'qbx_lua_ls', 'tests', 'fixtures', 'resources');
 try {
     await runTests({
         vscodeExecutablePath: process.env.VSCODE_EXECUTABLE_PATH,

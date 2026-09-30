@@ -1,7 +1,7 @@
 # Editor setup
 
 `qbx-editor` contains the VS Code adapter, a Zed extension and configuration
-examples for other editors. They use the [qbx-lua-ls](https://github.com/Qbox-project/qbx-lua-ls)
+examples for other editors. They use the [qbx-lua-ls](https://github.com/Qbox-project/qbx-lint/tree/main/crates/qbx_lua_ls)
 language server.
 
 | Editor | Current status |
@@ -43,7 +43,7 @@ server or resource folder instead.
 
 The server comes from `lsp.qbx-lua-ls.binary.path` when set, then `qbx-lua-ls` on
 `PATH`, and otherwise the latest
-[qbx-lua-ls release](https://github.com/Qbox-project/qbx-lua-ls/releases) for
+[qbx-lua-ls release](https://github.com/Qbox-project/qbx-lint/releases) for
 Windows x64, Linux x64/ARM64 or macOS x64/ARM64 is downloaded automatically.
 Server releases are picked up on the next Zed start. To update the extension
 itself, pull this repository, click **Rebuild** on CfxLua in the extensions page
@@ -77,17 +77,17 @@ terminal, to see download or startup errors.
 ## Obtain the server
 
 Download the archive for your operating system and architecture from
-[qbx-lua-ls releases](https://github.com/Qbox-project/qbx-lua-ls/releases).
+[qbx-lua-ls releases](https://github.com/Qbox-project/qbx-lint/releases).
 Extract the executable before configuring the editor.
 
-To build locally, follow the [source setup](../README.md#build-from-source) to
+To build locally, follow the [development setup](../CONTRIBUTING.md#development-setup) to
 clone the sibling repositories, then run this from the `qbx-editor` root:
 
 ```sh
-cargo build --release --locked --manifest-path ../qbx-lua-ls/Cargo.toml
+cargo build --release --locked -p qbx_lua_ls --manifest-path ../qbx-lint/Cargo.toml
 ```
 
-The built executable is `../qbx-lua-ls/target/release/qbx-lua-ls` (`qbx-lua-ls.exe`
+The built executable is `../qbx-lint/target/release/qbx-lua-ls` (`qbx-lua-ls.exe`
 on Windows). Add its directory to `PATH`, or use its absolute path in the client
 configuration. `qbx-lua-ls --version` should work in the editor's environment.
 The server speaks LSP over standard input/output when launched with no arguments.
