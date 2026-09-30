@@ -48,9 +48,10 @@ The language server is included. You can work on a single resource or an entire
 | Resource assets | Browse files, preview supported media and GTA textures, and inspect asset references and manifest issues. |
 | Coding assistant tools | Query resource information, diagnostics, symbol references and FiveM documentation through VS Code or MCP. |
 
-Analysis comes from [qbx-lua-ls](https://github.com/Qbox-project/qbx-lint/tree/main/crates/qbx_lua_ls) and
-[qbx-lint](https://github.com/Qbox-project/qbx-lint). The editor and command-line
-linter share rule configuration, so your local feedback and CI checks can agree.
+This editor is part of **Qbox Lua (`qbx-lua`)**. Its language server,
+[qbx-lua-ls](https://github.com/Qbox-project/qbx-lua/tree/main/crates/qbx_lua_ls), and the
+`qbx-lint` command-line linter live in the [qbx-lua tooling workspace](https://github.com/Qbox-project/qbx-lua).
+The editor and command-line linter share rule configuration, so your local feedback and CI checks can agree.
 
 ## Get started
 
@@ -400,7 +401,7 @@ the indexed workspace can also limit analysis.
 ## Project configuration
 
 Add `qbxlint.toml` to your workspace to share lint and formatting preferences with
-the [qbx-lint CLI and GitHub Action](https://github.com/Qbox-project/qbx-lint).
+the [qbx-lint CLI and GitHub Action](https://github.com/Qbox-project/qbx-lua).
 For example:
 
 ```toml
@@ -425,8 +426,8 @@ The extension registers itself as the default Lua formatter. Without a `qbxlint.
 formatter wraps lines longer than 120 columns; projects that keep long lines should raise
 `line_width` before enabling format on save, or the first save reflows every long statement.
 
-See the [configuration reference](https://github.com/Qbox-project/qbx-lint/blob/main/docs/reference.md)
-and [rule list](https://github.com/Qbox-project/qbx-lint/blob/main/docs/rules.md).
+See the [configuration reference](https://github.com/Qbox-project/qbx-lua/blob/main/docs/reference.md)
+and [rule list](https://github.com/Qbox-project/qbx-lua/blob/main/docs/rules.md).
 
 ## Editor settings
 
