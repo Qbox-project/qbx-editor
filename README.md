@@ -48,7 +48,7 @@ The language server is included. You can work on a single resource or an entire
 | Resource assets | Browse files, preview supported media and GTA textures, and inspect asset references and manifest issues. |
 | Coding assistant tools | Query resource information, diagnostics, symbol references and FiveM documentation through VS Code or MCP. |
 
-Analysis comes from [qbx-lua-ls](https://github.com/Qbox-project/qbx-lua-ls) and
+Analysis comes from [qbx-lua-ls](https://github.com/Qbox-project/qbx-lint/tree/main/crates/qbx_lua_ls) and
 [qbx-lint](https://github.com/Qbox-project/qbx-lint). The editor and command-line
 linter share rule configuration, so your local feedback and CI checks can agree.
 

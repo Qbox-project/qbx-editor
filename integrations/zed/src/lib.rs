@@ -1,7 +1,7 @@
 use std::fs;
 use zed_extension_api::{self as zed, settings::LspSettings, LanguageServerId, Result};
 
-const REPO: &str = "Qbox-project/qbx-lua-ls";
+const REPO: &str = "Qbox-project/qbx-lint";
 const SERVER: &str = "qbx-lua-ls";
 
 struct QbxLuaExtension {

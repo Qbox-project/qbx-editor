@@ -1,17 +1,16 @@
 # Contributing
 
 The VS Code adapter, syntax injections and editor setup examples live here.
-Language analysis belongs in [qbx-lua-ls](https://github.com/Qbox-project/qbx-lua-ls)
-or the shared [qbx-lint](https://github.com/Qbox-project/qbx-lint) crates.
+Language analysis belongs in the [qbx-lint](https://github.com/Qbox-project/qbx-lint) workspace,
+which contains `crates/qbx_lua_ls` and the shared parser, formatter and analysis crates.
 
 ## Development setup
 
-Use Node.js 22, npm and a current stable Rust toolchain. Clone all three
-repositories beside one another; the language server uses sibling Cargo paths:
+Use Node.js 22, npm and a current stable Rust toolchain. Clone the tooling workspace and
+editor repository beside one another:
 
 ```sh
 git clone https://github.com/Qbox-project/qbx-lint.git
-git clone https://github.com/Qbox-project/qbx-lua-ls.git
 git clone https://github.com/Qbox-project/qbx-editor.git
 cd qbx-editor
 npm ci
@@ -19,8 +18,8 @@ npm run server
 npm run build
 ```
 
-`npm run server` builds and copies the sibling server. Run it again after changing
-server code. To copy an existing binary instead, use
+`npm run server` builds `qbx_lua_ls` in the sibling tooling workspace and copies the server.
+Run it again after changing server code. To copy an existing binary instead, use
 `npm run server -- /absolute/path/to/qbx-lua-ls` (with `.exe` on Windows).
 
 Open this repository in VS Code and press **F5** to launch the Extension
@@ -38,7 +37,7 @@ npm test
 ```
 
 `npm test` compiles the tests and launches an isolated VS Code instance against
-the sibling server repository's resource fixtures. The first run may download
+the sibling tooling workspace's language-server resource fixtures. The first run may download
 VS Code and requires a working desktop session, or a virtual display on Linux.
 The server binary must be built before running the integration tests.
 
@@ -46,7 +45,7 @@ Add a regression case under `test/suite/` for extension behavior changes. If a
 change spans the server, also run its tests from this directory:
 
 ```sh
-cargo test --locked --manifest-path ../qbx-lua-ls/Cargo.toml
+cargo test --workspace --locked --manifest-path ../qbx-lint/Cargo.toml
 ```
 
 For packaging changes, run `npm run package -- --target <platform>` with a
@@ -74,11 +73,18 @@ The queries in `languages/` are adapted from `zed-extensions/lua` and must stay
 valid for the grammar commits pinned in `extension.toml`.
 
 To try it, run **zed: install dev extension** in Zed and select `integrations/zed`.
-The extension downloads the latest qbx-lua-ls release, so test server changes by
-putting a local build on `PATH` or setting `lsp.qbx-lua-ls.binary.path`.
+The extension downloads qbx-lua-ls from the latest shared qbx-lint release. Test server changes
+by putting a local build on `PATH` or setting `lsp.qbx-lua-ls.binary.path`.
 
 The versions in `extension.toml` and `Cargo.toml` must match `package.json`; CI
 fails otherwise.
+
+## Releases after the repository migration
+
+Merge the combined workspace and publish its first shared release before merging this editor
+migration. Existing linter tags predate the server import and cannot build the bundled server.
+For the next editor release, use the same new version/tag as the shared workspace, which supplies
+both CLI and server archives. See the [cutover notes](https://github.com/Qbox-project/qbx-lint/blob/main/docs/repository-migration.md).
 
 ## Issues and pull requests
 
