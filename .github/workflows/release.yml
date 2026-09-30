@@ -22,21 +22,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          repository: Qbox-project/qbx-lint
+          repository: Qbox-project/qbx-lua
           ref: ${{ github.ref_name }}
-          path: deps/qbx-lint
+          path: deps/qbx-lua
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.rust }}
       - run: rustup default stable
       - if: contains(matrix.rust, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --locked -p qbx_lua_ls --target ${{ matrix.rust }}
-        working-directory: deps/qbx-lint
+        working-directory: deps/qbx-lua
       - name: Check bundled server
         shell: bash
         run: |
           set -euo pipefail
-          binary="deps/qbx-lint/target/${{ matrix.rust }}/release/${{ matrix.bin }}"
+          binary="deps/qbx-lua/target/${{ matrix.rust }}/release/${{ matrix.bin }}"
           test "$("${binary}" --version)" = "qbx-lua-ls ${GITHUB_REF_NAME#v}"
           if [[ "${{ matrix.rust }}" == *musl ]]; then
             readelf -d "${binary}" > dynamic-section.txt
@@ -52,7 +52,7 @@ jobs:
       - name: Check version
         run: node -e "const p = require('./package.json'); if (process.env.GITHUB_REF_NAME !== 'v' + p.version) throw new Error('Tag must match package.json version ' + p.version)"
       - run: npm ci
-      - run: node scripts/copy-server.mjs deps/qbx-lint/target/${{ matrix.rust }}/release/${{ matrix.bin }}
+      - run: node scripts/copy-server.mjs deps/qbx-lua/target/${{ matrix.rust }}/release/${{ matrix.bin }}
       - run: npm run typecheck
       - run: npx vsce package --no-dependencies --target ${{ matrix.vsce }} --out qbx-lua-${{ matrix.vsce }}.vsix
       - uses: actions/upload-artifact@v4

@@ -318,8 +318,8 @@ const tests: Test[] = [
         const binary = process.platform === 'win32' ? 'qbx-lua-ls.exe' : 'qbx-lua-ls';
         const candidates = [
             path.join(extension.extensionPath, 'server', `${process.platform}-${process.arch}`, binary),
-            path.join(extension.extensionPath, '..', 'qbx-lua-ls', 'target', 'release', binary),
-            path.join(extension.extensionPath, '..', 'qbx-lua-ls', 'target', 'debug', binary),
+            path.join(extension.extensionPath, '..', 'qbx-lua', 'target', 'release', binary),
+            path.join(extension.extensionPath, '..', 'qbx-lua', 'target', 'debug', binary),
         ];
         const command = configured || candidates.find((candidate) => fs.existsSync(candidate));
         assert.ok(command, 'the integration suite requires the built language server');

@@ -1,4 +1,4 @@
-// Builds the server from the sibling qbx-lint workspace and copies it into server/<platform>-<arch>/ for the .vsix.
+// Builds the server from the sibling qbx-lua workspace and copies it into server/<platform>-<arch>/ for the .vsix.
 // usage: node scripts/copy-server.mjs [path-to-prebuilt-binary]
 import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const name = process.platform === 'win32' ? 'qbx-lua-ls.exe' : 'qbx-lua-ls';
-const checkout = join(root, '..', 'qbx-lint');
+const checkout = join(root, '..', 'qbx-lua');
 const source = resolve(process.argv[2] ?? join(checkout, 'target', 'release', name));
 if (!process.argv[2] && existsSync(join(checkout, 'Cargo.toml'))) {
     const build = spawnSync('cargo', ['build', '--release', '--locked', '-p', 'qbx_lua_ls'], { cwd: checkout, stdio: 'inherit' });

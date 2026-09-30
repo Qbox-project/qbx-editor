@@ -1,7 +1,7 @@
 # Contributing
 
 The VS Code adapter, syntax injections and editor setup examples live here.
-Language analysis belongs in the [qbx-lint](https://github.com/Qbox-project/qbx-lint) workspace,
+Language analysis belongs in the [qbx-lua](https://github.com/Qbox-project/qbx-lua) workspace,
 which contains `crates/qbx_lua_ls` and the shared parser, formatter and analysis crates.
 
 ## Development setup
@@ -10,7 +10,7 @@ Use Node.js 22, npm and a current stable Rust toolchain. Clone the tooling works
 editor repository beside one another:
 
 ```sh
-git clone https://github.com/Qbox-project/qbx-lint.git
+git clone https://github.com/Qbox-project/qbx-lua.git
 git clone https://github.com/Qbox-project/qbx-editor.git
 cd qbx-editor
 npm ci
@@ -45,7 +45,7 @@ Add a regression case under `test/suite/` for extension behavior changes. If a
 change spans the server, also run its tests from this directory:
 
 ```sh
-cargo test --workspace --locked --manifest-path ../qbx-lint/Cargo.toml
+cargo test --workspace --locked --manifest-path ../qbx-lua/Cargo.toml
 ```
 
 For packaging changes, run `npm run package -- --target <platform>` with a
@@ -73,18 +73,19 @@ The queries in `languages/` are adapted from `zed-extensions/lua` and must stay
 valid for the grammar commits pinned in `extension.toml`.
 
 To try it, run **zed: install dev extension** in Zed and select `integrations/zed`.
-The extension downloads qbx-lua-ls from the latest shared qbx-lint release. Test server changes
+The extension downloads qbx-lua-ls from the latest shared qbx-lua release. Test server changes
 by putting a local build on `PATH` or setting `lsp.qbx-lua-ls.binary.path`.
 
 The versions in `extension.toml` and `Cargo.toml` must match `package.json`; CI
 fails otherwise.
 
-## Releases after the repository migration
+## Releases
 
-Merge the combined workspace and publish its first shared release before merging this editor
-migration. Existing linter tags predate the server import and cannot build the bundled server.
-For the next editor release, use the same new version/tag as the shared workspace, which supplies
-both CLI and server archives. See the [cutover notes](https://github.com/Qbox-project/qbx-lint/blob/main/docs/repository-migration.md).
+Publish the matching version/tag in `qbx-lua` before tagging an editor release. The shared
+workspace supplies both CLI and server archives, and editor release builds check out that tag
+to bundle the server. Use `v1.0.5` or later; older linter tags predate the server import.
+The workspace was renamed from `qbx-lint` to `qbx-lua`; use the new repository and sibling
+directory name in development. See the [migration notes](https://github.com/Qbox-project/qbx-lua/blob/main/docs/repository-migration.md).
 
 ## Issues and pull requests
 

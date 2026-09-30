@@ -170,8 +170,8 @@ function resolveServerPath(context: vscode.ExtensionContext): string {
     }
     const candidates = [
         context.asAbsolutePath(path.join('server', platformFolder(), binaryName())),
-        context.asAbsolutePath(path.join('..', 'qbx-lua-ls', 'target', 'release', binaryName())),
-        context.asAbsolutePath(path.join('..', 'qbx-lua-ls', 'target', 'debug', binaryName())),
+        context.asAbsolutePath(path.join('..', 'qbx-lua', 'target', 'release', binaryName())),
+        context.asAbsolutePath(path.join('..', 'qbx-lua', 'target', 'debug', binaryName())),
     ];
     return candidates.find((candidate) => fs.existsSync(candidate)) ?? binaryName();
 }
