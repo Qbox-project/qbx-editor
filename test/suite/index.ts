@@ -16,6 +16,7 @@ import { runLuaUtilitiesTests } from './luaUtilities';
 import { runAssistantToolsTests } from './assistantTools';
 import { runAssetTests } from './assets';
 import { runAssetHostTests } from './assetsHost';
+import { runSettingsSchemaTests } from './settingsSchema';
 
 type Test = [name: string, body: () => Promise<void>];
 
@@ -68,6 +69,7 @@ const tests: Test[] = [
     ['Structured assistant tools, portable MCP and editor API', runAssistantToolsTests],
     ['Asset formats, texture decoding and bounded inventory', runAssetTests],
     ['Asset browser resource lifecycle and real editor rendering', runAssetHostTests],
+    ['settings.json suggests and checks the rules of the running server', runSettingsSchemaTests],
     [
         'activates and answers status requests',
         async () => {
