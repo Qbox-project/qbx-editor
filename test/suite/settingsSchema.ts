@@ -30,7 +30,7 @@ function label(item: vscode.CompletionItem): string {
 
 const tests: Test[] = [
     ['rules become keys with their summary, category and default level', () => {
-        const schema = settingsSchema([unusedLocal, citizenPrefix], false) as { properties: Record<string, { properties: Record<string, Record<string, unknown>>; additionalProperties: unknown }> };
+        const schema = settingsSchema([unusedLocal, citizenPrefix], 'folder') as { properties: Record<string, { properties: Record<string, Record<string, unknown>>; additionalProperties: unknown }> };
         const rules = schema.properties['qbxLua.diagnostics.rules'];
         assert.deepEqual(Object.keys(rules.properties), ['unused-local', 'fivem/citizen-prefix']);
         assert.equal(rules.additionalProperties, false);
@@ -42,10 +42,19 @@ const tests: Test[] = [
         assert.equal(rules.properties['fivem/citizen-prefix'].markdownDescription, 'Citizen. prefix.\n\nfivem · default `off` · fixable');
     }],
     ['without rules from the server the schema flags no key', () => {
-        assert.deepEqual(settingsSchema([], false), { properties: { 'qbxLua.diagnostics.rules': {} } });
+        assert.deepEqual(settingsSchema([], 'folder'), { properties: { 'qbxLua.diagnostics.rules': {} } });
     }],
     ['workspace files nest the rules under settings', () => {
-        assert.deepEqual(settingsSchema([], true), { properties: { settings: { properties: { 'qbxLua.diagnostics.rules': {} } } } });
+        assert.deepEqual(settingsSchema([], 'workspace'), { properties: { settings: { properties: { 'qbxLua.diagnostics.rules': {} } } } });
+        const schema = settingsSchema([unusedLocal], 'workspace') as { properties: { settings: { properties: Record<string, Record<string, unknown>> } } };
+        assert.equal(schema.properties.settings.properties['qbxLua.diagnostics.rules'].additionalProperties, false);
+    }],
+    ['user settings suggest the rules without flagging other names', () => {
+        const schema = settingsSchema([unusedLocal], 'user') as { properties: Record<string, Record<string, unknown>> };
+        const rules = schema.properties['qbxLua.diagnostics.rules'];
+        assert.deepEqual(Object.keys(rules.properties as object), ['unused-local']);
+        assert.equal(rules.additionalProperties, undefined);
+        assert.equal(rules.errorMessage, undefined);
     }],
     ['settings.json suggests the server rules and flags unknown ones', async () => {
         const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'qbx-settings-schema-'));
