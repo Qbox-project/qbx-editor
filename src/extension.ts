@@ -28,6 +28,7 @@ let client: LanguageClient | undefined;
 let statusItem: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 let settingsSchema: SettingsSchemaProvider;
+let starting: Promise<void> | undefined;
 let reindexTimer: ReturnType<typeof setTimeout> | undefined;
 let reindexRunning = false;
 let reindexRequested = false;
@@ -45,6 +46,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     let discovered = false;
     void resourceControls.resourceIndex.ready.then(() => { discovered = true; }, () => { discovered = true; });
     const request = async <T>(method: string, params: unknown, token?: vscode.CancellationToken): Promise<T> => {
+        await ensureStarted(context);
         if (!client || client.state !== State.Running) {
             throw new Error('The Qbox Lua language server is not running. Use Qbox Lua: Restart Language Server, then retry.');
         }
@@ -135,7 +137,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         }),
         vscode.workspace.onDidChangeConfiguration((event) => {
             const needsRestart = event.affectsConfiguration(`${CONFIG_SECTION}.server.path`) || event.affectsConfiguration(`${CONFIG_SECTION}.library`);
-            if (needsRestart) {
+            if (needsRestart && starting) {
                 void restart(context);
             }
         }),
@@ -151,8 +153,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         vscode.workspace.onDidChangeTextDocument(suggestAnnotationTags),
     );
 
-    await start(context);
-    warnAboutOtherLuaExtensions();
+    if (await hasLuaWork()) {
+        await ensureStarted(context);
+    } else {
+        context.subscriptions.push(
+            vscode.workspace.onDidOpenTextDocument((document) => {
+                if (document.languageId === 'lua') {
+                    void ensureStarted(context);
+                }
+            }),
+            resourceControls.resourceIndex.onDidChange((resources) => {
+                if (resources.length > 0) {
+                    void ensureStarted(context);
+                }
+            }),
+        );
+    }
     const { registerAssistantTools } = await import('./assistantVscode.js');
     return registerAssistantTools(context, request);
 }
@@ -271,10 +287,25 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     }
 }
 
+/** A settings file asking for the rule schemas activates the extension in any window, so only Lua work starts the server. */
+async function hasLuaWork(): Promise<boolean> {
+    if (vscode.workspace.textDocuments.some((document) => document.languageId === 'lua')) {
+        return true;
+    }
+    const manifests = await vscode.workspace.findFiles('**/{fxmanifest.lua,__resource.lua}', undefined, 1);
+    return manifests.length > 0;
+}
+
+function ensureStarted(context: vscode.ExtensionContext): Promise<void> {
+    starting ??= start(context).then(warnAboutOtherLuaExtensions);
+    return starting;
+}
+
 async function restart(context: vscode.ExtensionContext): Promise<void> {
     await client?.stop().catch(() => undefined);
     client = undefined;
-    await start(context);
+    starting = start(context);
+    await starting;
 }
 
 async function fetchStatus(): Promise<ServerStatus | undefined> {
