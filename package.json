@@ -373,7 +373,12 @@
         "fileMatch": [
           "%APP_SETTINGS_HOME%/settings.json",
           "%APP_SETTINGS_HOME%/profiles/*/settings.json",
-          "%MACHINE_SETTINGS_HOME%/settings.json",
+          "%MACHINE_SETTINGS_HOME%/settings.json"
+        ],
+        "url": "qbx-lua://schemas/user-settings.json"
+      },
+      {
+        "fileMatch": [
           "/.vscode/settings.json"
         ],
         "url": "qbx-lua://schemas/settings.json"
