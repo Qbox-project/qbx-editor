@@ -98,6 +98,12 @@
           },
           "markdownDescription": "Rule levels, e.g. `{ \"unused-argument\": \"off\", \"fivem/citizen-prefix\": \"warning\" }`. The levels a `qbxlint.toml` in the workspace sets take precedence, so the editor and CI stay in sync."
         },
+        "qbxLua.diagnostics.strict": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "Also report what TypeScript's strict mode does beyond lua-language-server: `need-check-nil` for arithmetic, concatenation, `#` and comparisons with a value that may be `nil`, the `nil` of fields, optional callback parameters and other functions in `param-type-mismatch`, `field = nil` for fields that do not allow it, the fields of shapes in `missing-fields`, and fields of tables built by table constructors in `inject-field` and `undefined-field`. A `strict` that a `qbxlint.toml` in the workspace sets takes precedence."
+        },
         "qbxLua.inlayHints.enable": {
           "type": "boolean",
           "default": true,
