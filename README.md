@@ -444,6 +444,7 @@ Search for `qbxLua` in VS Code Settings.
 | `qbxLua.diagnostics.enable` | `true` | Show diagnostics. |
 | `qbxLua.diagnostics.workspace` | `true` | Include files that are not open. |
 | `qbxLua.diagnostics.rules` | `{}` | Rule levels: `off`, `hint`, `info`, `warning` or `error`. The levels a `qbxlint.toml` sets take precedence. |
+| `qbxLua.diagnostics.strict` | `false` | Also report what TypeScript's strict mode does beyond lua-language-server, such as `n + 1` for a `number?`. A `strict` that a `qbxlint.toml` sets takes precedence. |
 | `qbxLua.inlayHints.enable` | `true` | Show parameter names beside literal arguments. |
 | `qbxLua.semanticTokens.enable` | `true` | Enable semantic highlighting. |
 | `qbxLua.hover.verbosity` | `1` | How much a hover shows when it opens, from `0` (the type alone) to `5`. A hover's `+` and `-` buttons show more or less of it. |

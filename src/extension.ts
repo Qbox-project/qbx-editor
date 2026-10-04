@@ -235,6 +235,7 @@ function serverSettings(): Record<string, unknown> {
             enable: config.get<boolean>('diagnostics.enable', true),
             workspace: config.get<boolean>('diagnostics.workspace', true),
             rules: config.get<Record<string, string>>('diagnostics.rules', {}),
+            strict: config.get<boolean>('diagnostics.strict', false),
         },
         inlayHints: { enable: config.get<boolean>('inlayHints.enable', true) },
         semanticTokens: { enable: config.get<boolean>('semanticTokens.enable', true) },

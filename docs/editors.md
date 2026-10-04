@@ -139,7 +139,8 @@ Helix calls it `language-server.<name>.config`; Zed calls it
   "diagnostics": {
     "enable": true,
     "workspace": true,
-    "rules": { "unused-local": "warning" }
+    "rules": { "unused-local": "warning" },
+    "strict": false
   },
   "inlayHints": { "enable": true },
   "semanticTokens": { "enable": true },
@@ -149,6 +150,9 @@ Helix calls it `language-server.<name>.config`; Zed calls it
 
 `hover.verbosity` is how much a hover shows, from `0` (the type alone) to `5`.
 Clients that send lua-language-server's hover `level` choose it per hover instead.
+`diagnostics.strict` makes the type rules also report what TypeScript's strict
+mode does beyond lua-language-server; a `strict` in `qbxlint.toml` takes
+precedence.
 
 Do not send dotted keys such as `qbxLua.library`, or a `qbxLua` wrapper, in
 initialization options. A `workspace/didChangeConfiguration` notification may
