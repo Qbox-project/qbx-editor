@@ -1,7 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, State, TransportKind } from 'vscode-languageclient/node';
+import { HoverRequest, LanguageClient, LanguageClientOptions, ServerOptions, State, TransportKind, type Hover as ProtocolHover, type HoverParams } from 'vscode-languageclient/node';
+import { HoverLevels, verboseHoverClass, type HoverLevelSettings, type LevelHover } from './hoverLevels';
 import { luaQuote } from './luaQuote';
 import { registerManifestSnippetCompletions } from './manifestSnippets';
 import { ResourceControls } from './resourceControls';
@@ -22,6 +23,7 @@ interface FileInfo {
 }
 
 const CONFIG_SECTION = 'qbxLua';
+const LUA_DOCUMENTS = [{ scheme: 'file', language: 'lua' }];
 const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ihyajb.qbcore-code-snippets'];
 
 let client: LanguageClient | undefined;
@@ -41,6 +43,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     // Registered before the server starts: a settings file that asks for these schemas is what activates the extension.
     settingsSchema = new SettingsSchemaProvider();
     context.subscriptions.push(settingsSchema, vscode.workspace.registerTextDocumentContentProvider(SETTINGS_SCHEMA_SCHEME, settingsSchema));
+    // Where VS Code has hover buttons, this provider shows the server's hovers instead of the client's own.
+    const verboseHover = verboseHoverClass();
+    const hoverLevels = verboseHover && new HoverLevels(verboseHover, context.globalState, hoverSettings, requestHover);
+    if (hoverLevels) {
+        context.subscriptions.push(vscode.languages.registerHoverProvider(LUA_DOCUMENTS, hoverLevels));
+    }
     const resourceControls = new ResourceControls(context);
     context.subscriptions.push(resourceControls);
     let discovered = false;
@@ -140,6 +148,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
             if (needsRestart && starting) {
                 void restart(context);
             }
+            if (event.affectsConfiguration(`${CONFIG_SECTION}.hover`)) {
+                void hoverLevels?.forget();
+            }
         }),
         vscode.window.onDidChangeActiveTextEditor(() => {
             updateStatusVisibility();
@@ -227,7 +238,28 @@ function serverSettings(): Record<string, unknown> {
         },
         inlayHints: { enable: config.get<boolean>('inlayHints.enable', true) },
         semanticTokens: { enable: config.get<boolean>('semanticTokens.enable', true) },
+        hover: { verbosity: config.get<number>('hover.verbosity', 1) },
     };
+}
+
+function hoverSettings(document: vscode.TextDocument): HoverLevelSettings {
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document);
+    return { verbosity: config.get<number>('hover.verbosity', 1), remember: config.get<boolean>('hover.rememberVerbosity', false) };
+}
+
+/** The server's hover at `level`, with the `maxLevel` it answers, as lua-language-server's client asks for it. */
+async function requestHover(document: vscode.TextDocument, position: vscode.Position, level: number, token: vscode.CancellationToken): Promise<LevelHover | undefined> {
+    if (!client || client.state !== State.Running) {
+        return undefined;
+    }
+    const params: HoverParams & { level: number } = { ...client.code2ProtocolConverter.asTextDocumentPositionParams(document, position), level };
+    try {
+        const result = (await client.sendRequest(HoverRequest.type, params, token)) as (ProtocolHover & { maxLevel?: unknown }) | null;
+        const hover = client.protocol2CodeConverter.asHover(result);
+        return hover && { hover, maxLevel: typeof result?.maxLevel === 'number' ? result.maxLevel : undefined };
+    } catch (error) {
+        return client.handleFailedRequest(HoverRequest.type, token, error, undefined);
+    }
 }
 
 async function start(context: vscode.ExtensionContext): Promise<void> {
@@ -239,10 +271,12 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
         debug: { command, transport: TransportKind.stdio },
     };
     const clientOptions: LanguageClientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'lua' }],
+        documentSelector: LUA_DOCUMENTS,
         outputChannel: output,
         initializationOptions: serverSettings(),
         synchronize: { configurationSection: CONFIG_SECTION },
+        // The provider that `activate` registers shows hovers with buttons where VS Code has them.
+        middleware: verboseHoverClass() ? { provideHover: () => undefined } : undefined,
     };
 
     client = new LanguageClient('qbxLua', 'Qbox Lua', serverOptions, clientOptions);
