@@ -142,9 +142,13 @@ Helix calls it `language-server.<name>.config`; Zed calls it
     "rules": { "unused-local": "warning" }
   },
   "inlayHints": { "enable": true },
-  "semanticTokens": { "enable": true }
+  "semanticTokens": { "enable": true },
+  "hover": { "verbosity": 1 }
 }
 ```
+
+`hover.verbosity` is how much a hover shows, from `0` (the type alone) to `5`.
+Clients that send lua-language-server's hover `level` choose it per hover instead.
 
 Do not send dotted keys such as `qbxLua.library`, or a `qbxLua` wrapper, in
 initialization options. A `workspace/didChangeConfiguration` notification may

@@ -446,6 +446,8 @@ Search for `qbxLua` in VS Code Settings.
 | `qbxLua.diagnostics.rules` | `{}` | Rule levels: `off`, `hint`, `info`, `warning` or `error`. The levels a `qbxlint.toml` sets take precedence. |
 | `qbxLua.inlayHints.enable` | `true` | Show parameter names beside literal arguments. |
 | `qbxLua.semanticTokens.enable` | `true` | Enable semantic highlighting. |
+| `qbxLua.hover.verbosity` | `1` | How much a hover shows when it opens, from `0` (the type alone) to `5`. A hover's `+` and `-` buttons show more or less of it. |
+| `qbxLua.hover.rememberVerbosity` | `false` | Open hovers at the level last chosen with the `+` and `-` buttons, also after a restart. |
 | `qbxLua.warnAboutOtherLuaExtensions` | `true` | Warn about other active Lua language servers. |
 | `qbxLua.server.path` | `""` | Advanced: use a custom language-server binary. |
 | `qbxLua.trace.server` | `"off"` | Advanced: trace language-server communication with `messages` or `verbose`. |

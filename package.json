@@ -110,6 +110,20 @@
           "scope": "resource",
           "description": "Colour natives, globals, parameters and methods semantically."
         },
+        "qbxLua.hover.verbosity": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 5,
+          "scope": "resource",
+          "markdownDescription": "How much a hover shows when it opens: `0` the type alone, `1` also the fields of tables and the aliases they use, and each level up to `5` more fields and one more step of the tables and classes they hold. The `+` and `-` buttons of a hover show more or less of that hover."
+        },
+        "qbxLua.hover.rememberVerbosity": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "Open hovers at the level last chosen with the `+` and `-` buttons of a hover instead of `#qbxLua.hover.verbosity#`, also after a restart. Changing either setting starts again from `#qbxLua.hover.verbosity#`."
+        },
         "qbxLua.warnAboutOtherLuaExtensions": {
           "type": "boolean",
           "default": true,

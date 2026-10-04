@@ -17,6 +17,7 @@ import { runAssistantToolsTests } from './assistantTools';
 import { runAssetTests } from './assets';
 import { runAssetHostTests } from './assetsHost';
 import { runSettingsSchemaTests } from './settingsSchema';
+import { runHoverLevelTests } from './hoverLevels';
 
 type Test = [name: string, body: () => Promise<void>];
 
@@ -70,6 +71,7 @@ const tests: Test[] = [
     ['Asset formats, texture decoding and bounded inventory', runAssetTests],
     ['Asset browser resource lifecycle and real editor rendering', runAssetHostTests],
     ['settings.json suggests and checks the rules of the running server', runSettingsSchemaTests],
+    ['hover levels follow the buttons, the default level and the remembered one', runHoverLevelTests],
     [
         'activates and answers status requests',
         async () => {
@@ -106,6 +108,21 @@ const tests: Test[] = [
             });
             assert.match(text, /function MyLib\.round\(value: number, decimals\?: integer\): number/);
             assert.match(text, /Rounds a number/);
+        },
+    ],
+    [
+        'hovers open at qbxLua.hover.verbosity with buttons to show more and less',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const position = positionOf(document, 'local garage', 7);
+            const hovers = await waitFor('hover', async () => {
+                const result = await vscode.commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', document.uri, position);
+                return hoverText(result ?? []).includes('local garage: Garage {') ? result : undefined;
+            });
+            const garage = hovers.filter((hover) => hoverText([hover]).includes('local garage'));
+            assert.equal(garage.length, 1, 'only the hover with buttons should answer, not the one of the language client');
+            const [hover] = garage as (vscode.Hover & { canIncreaseVerbosity?: boolean; canDecreaseVerbosity?: boolean })[];
+            assert.deepEqual([hover.canIncreaseVerbosity, hover.canDecreaseVerbosity], [true, true]);
         },
     ],
     [
