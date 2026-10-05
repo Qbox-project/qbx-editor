@@ -1,0 +1,214 @@
+{
+  "scopeName": "lua.sql.injection",
+  "injectionSelector": "L:source.lua -comment -string -meta.embedded.block.sql",
+  "patterns": [
+    {
+      "include": "#language-marker"
+    },
+    {
+      "include": "#transaction"
+    },
+    {
+      "include": "#call"
+    }
+  ],
+  "repository": {
+    "language-marker": {
+      "comment": "---@language sql above a line highlights the strings that start on that line as SQL. The begin takes the newline, so the end of the marked line itself, which follows it, is no end.",
+      "begin": "^([ \\t]*)((---)(@language)[ \\t]+(sql)\\b[^\\n]*)\\n",
+      "beginCaptures": {
+        "2": {
+          "name": "comment.line.double-dash.documentation.lua"
+        },
+        "3": {
+          "name": "punctuation.definition.comment.lua"
+        },
+        "4": {
+          "name": "storage.type.annotation.lua"
+        },
+        "5": {
+          "name": "support.type.lua"
+        }
+      },
+      "end": "(?<=.)$",
+      "applyEndPatternLast": 1,
+      "patterns": [
+        {
+          "include": "#sql-strings"
+        },
+        {
+          "include": "source.lua"
+        }
+      ]
+    },
+    "call": {
+      "comment": "The first argument of an oxmysql, mysql-async or ghmattimysql call that takes a query.",
+      "begin": "((?<=\\bMySQL\\.)(?:query|single|scalar|insert|update|prepare|rawExecute|execute)|(?<=\\bMySQL\\.query\\.|\\bMySQL\\.single\\.|\\bMySQL\\.scalar\\.|\\bMySQL\\.insert\\.|\\bMySQL\\.update\\.|\\bMySQL\\.prepare\\.|\\bMySQL\\.rawExecute\\.|\\bMySQL\\.execute\\.)await|(?<=\\bMySQL\\.Async\\.|\\bMySQL\\.Sync\\.)(?:fetchAll|fetchScalar|fetchSingle|execute|insert|store)|(?<=\\bexports\\.oxmysql:|\\bexports\\['oxmysql'\\]:|\\bexports\\[\"oxmysql\"\\]:)(?:query|single|scalar|insert|update|prepare|rawExecute|execute|fetch)(?:_async|Sync)?|(?<=\\bexports\\.ghmattimysql:|\\bexports\\['ghmattimysql'\\]:|\\bexports\\[\"ghmattimysql\"\\]:)(?:execute|scalar)(?:Sync)?)\\s*(\\()",
+      "beginCaptures": {
+        "1": {
+          "name": "support.function.any-method.lua"
+        }
+      },
+      "end": "(?=[,)])",
+      "patterns": [
+        {
+          "include": "#sql-strings"
+        },
+        {
+          "include": "source.lua"
+        }
+      ]
+    },
+    "transaction": {
+      "comment": "The queries a transaction is given: long strings, and short ones that start with a statement.",
+      "begin": "((?<=\\bMySQL\\.)transaction|(?<=\\bMySQL\\.transaction\\.)await|(?<=\\bexports\\.oxmysql:|\\bexports\\['oxmysql'\\]:|\\bexports\\[\"oxmysql\"\\]:)transaction(?:_async)?|(?<=\\bexports\\.ghmattimysql:|\\bexports\\['ghmattimysql'\\]:|\\bexports\\[\"ghmattimysql\"\\]:)transaction(?:Sync)?)\\s*(\\()",
+      "beginCaptures": {
+        "1": {
+          "name": "support.function.any-method.lua"
+        }
+      },
+      "end": "\\)",
+      "patterns": [
+        {
+          "begin": "'(?=\\s*(?i:select|insert|update|delete|replace|with|create|alter|drop|truncate|call|set)\\b)",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.single.lua punctuation.definition.string.begin.lua"
+            }
+          },
+          "end": "'|(?=\\n)",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.single.lua punctuation.definition.string.end.lua"
+            }
+          },
+          "contentName": "meta.embedded.block.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            },
+            {
+              "include": "source.sql"
+            }
+          ]
+        },
+        {
+          "begin": "\"(?=\\s*(?i:select|insert|update|delete|replace|with|create|alter|drop|truncate|call|set)\\b)",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.double.lua punctuation.definition.string.begin.lua"
+            }
+          },
+          "end": "\"|(?=\\n)",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.double.lua punctuation.definition.string.end.lua"
+            }
+          },
+          "contentName": "meta.embedded.block.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            },
+            {
+              "include": "source.sql"
+            }
+          ]
+        },
+        {
+          "begin": "(?<!--)\\[(=*)\\[",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.other.multiline.lua punctuation.definition.string.begin.lua"
+            }
+          },
+          "end": "\\]\\1\\]",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.other.multiline.lua punctuation.definition.string.end.lua"
+            }
+          },
+          "contentName": "meta.embedded.block.sql",
+          "patterns": [
+            {
+              "include": "source.sql"
+            }
+          ]
+        },
+        {
+          "include": "source.lua"
+        }
+      ]
+    },
+    "sql-strings": {
+      "patterns": [
+        {
+          "begin": "'",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.single.lua punctuation.definition.string.begin.lua"
+            }
+          },
+          "end": "'|(?=\\n)",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.single.lua punctuation.definition.string.end.lua"
+            }
+          },
+          "contentName": "meta.embedded.block.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            },
+            {
+              "include": "source.sql"
+            }
+          ]
+        },
+        {
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.double.lua punctuation.definition.string.begin.lua"
+            }
+          },
+          "end": "\"|(?=\\n)",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.double.lua punctuation.definition.string.end.lua"
+            }
+          },
+          "contentName": "meta.embedded.block.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            },
+            {
+              "include": "source.sql"
+            }
+          ]
+        },
+        {
+          "begin": "(?<!--)\\[(=*)\\[",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.other.multiline.lua punctuation.definition.string.begin.lua"
+            }
+          },
+          "end": "\\]\\1\\]",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.other.multiline.lua punctuation.definition.string.end.lua"
+            }
+          },
+          "contentName": "meta.embedded.block.sql",
+          "patterns": [
+            {
+              "include": "source.sql"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

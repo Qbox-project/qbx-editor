@@ -116,6 +116,12 @@
           "scope": "resource",
           "description": "Colour natives, globals, parameters and methods semantically."
         },
+        "qbxLua.sqlHighlighting.enable": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Highlight SQL in the queries of database calls such as `MySQL.query.await(...)`, in calls of functions whose first parameter has the `sql` type, and in strings below `---@language sql`. Takes effect after the window reloads, for every window."
+        },
         "qbxLua.hover.verbosity": {
           "type": "integer",
           "default": 1,
@@ -379,6 +385,26 @@
         "injectTo": [
           "source.lua"
         ]
+      },
+      {
+        "scopeName": "lua.sql.injection",
+        "path": "./syntaxes/sql.injection.json",
+        "injectTo": [
+          "source.lua"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.sql": "sql"
+        }
+      },
+      {
+        "scopeName": "lua.sql-functions.injection",
+        "path": "./syntaxes/sql-functions.injection.json",
+        "injectTo": [
+          "source.lua"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.sql": "sql"
+        }
       }
     ],
     "jsonValidation": [
@@ -704,7 +730,9 @@
     "esbuild": "^0.24.0",
     "jsonc-parser": "3.3.1",
     "marked": "18.0.14",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   },
   "homepage": "https://github.com/Qbox-project/qbx-editor#readme",
   "bugs": {

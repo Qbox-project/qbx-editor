@@ -1,6 +1,6 @@
 {
   "scopeName": "cfxlua.injection",
-  "injectionSelector": "L:source.lua -comment -string",
+  "injectionSelector": "L:source.lua -comment -string -meta.embedded.block.sql",
   "patterns": [
     { "include": "#c-block-comment" },
     { "include": "#jenkins-hash" },

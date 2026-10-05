@@ -36,6 +36,7 @@ The language server is included. You can work on a single resource or an entire
 | Client/server context | Catch calls used on the wrong side and see the current file's side in the status bar. |
 | Navigation and rename | Follow definitions and references across your workspace and rename supported symbols. |
 | Formatting | Format Lua with shared project settings in `qbxlint.toml`. |
+| SQL highlighting | Read oxmysql queries, queries passed to your own `---@param query sql` functions and strings marked `---@language sql` with SQL colors. |
 | Syntax and editor hints | Read CfxLua backtick hashes, LuaCATS annotations, semantic highlighting, signature help and parameter hints. |
 | Annotation typing | Press Enter after a `---@param` line to start the next one with `---@`; Enter on a bare `---@` clears it. Typing a letter after `---@` lists the tags, previewing the rest of the selected one in gray; Tab accepts it. |
 | Framework callbacks | Complete QB-Core/ESX callback names, find server handlers and see payload hints from local Lua code. |
@@ -105,6 +106,46 @@ from hints; definitions can still show all matching registrations.
 This uses local code without fetching framework documentation. Async response
 types, custom wrappers and client-callback/Await variants are outside these
 adapters. Existing ox_lib callbacks remain supported.
+
+## SQL highlighting
+
+Queries are colored with VS Code's built-in SQL grammar. The first argument of
+oxmysql calls such as `MySQL.query.await(...)`, `MySQL.insert(...)` and
+`exports.oxmysql:execute(...)` is highlighted without annotations, as are the
+queries of mysql-async and ghmattimysql calls and the query strings a
+transaction is given. The query may follow on the next line, or be written as
+`([[...]]):format(...)`.
+
+Give your own query functions an `sql` first parameter, and their calls are
+highlighted the same way:
+
+```lua
+---@param query sql
+---@param params? table
+function DB.fetch(query, params)
+    return MySQL.query.await(query, params)
+end
+
+DB.fetch('SELECT * FROM players WHERE citizenid = ?', { citizenid })
+```
+
+`sql` is a `string` to the type checks. VS Code reads grammars when a window
+starts, so after a new query function appears, a notification offers to reload
+the window. Calls are matched by the name they are written with: `DB.fetch`,
+`DB:query` for a function defined with `:`, or `exports.mydb:scalar` for an
+export.
+
+Any other string is highlighted when `---@language sql` is on the line above:
+
+```lua
+---@language sql
+local query = [[
+    SELECT id, plate FROM player_vehicles WHERE citizenid = ?
+]]
+```
+
+Set `qbxLua.sqlHighlighting.enable` to `false` to read all of these as plain
+strings; the change takes effect after the window reloads.
 
 ## Control resources from Explorer
 
@@ -447,6 +488,7 @@ Search for `qbxLua` in VS Code Settings.
 | `qbxLua.diagnostics.strict` | `false` | Also report what TypeScript's strict mode does beyond lua-language-server, such as `n + 1` for a `number?`. A `strict` that a `qbxlint.toml` sets takes precedence. |
 | `qbxLua.inlayHints.enable` | `true` | Show parameter names beside literal arguments. |
 | `qbxLua.semanticTokens.enable` | `true` | Enable semantic highlighting. |
+| `qbxLua.sqlHighlighting.enable` | `true` | Highlight SQL in database calls, calls of `sql` query functions and strings below `---@language sql`. Takes effect after the window reloads, for every window. |
 | `qbxLua.hover.verbosity` | `1` | How much a hover shows when it opens, from `0` (the type alone) to `5`. A hover's `+` and `-` buttons show more or less of it. |
 | `qbxLua.hover.rememberVerbosity` | `false` | Open hovers at the level last chosen with the `+` and `-` buttons, also after a restart. |
 | `qbxLua.warnAboutOtherLuaExtensions` | `true` | Warn about other active Lua language servers. |
