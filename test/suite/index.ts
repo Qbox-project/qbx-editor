@@ -18,6 +18,7 @@ import { runAssetTests } from './assets';
 import { runAssetHostTests } from './assetsHost';
 import { runSettingsSchemaTests } from './settingsSchema';
 import { runHoverLevelTests } from './hoverLevels';
+import { runSqlHighlightingTests } from './sqlHighlighting';
 
 type Test = [name: string, body: () => Promise<void>];
 
@@ -72,6 +73,7 @@ const tests: Test[] = [
     ['Asset browser resource lifecycle and real editor rendering', runAssetHostTests],
     ['settings.json suggests and checks the rules of the running server', runSettingsSchemaTests],
     ['hover levels follow the buttons, the default level and the remembered one', runHoverLevelTests],
+    ['SQL highlighting of database calls, marked strings and query functions', runSqlHighlightingTests],
     [
         'activates and answers status requests',
         async () => {

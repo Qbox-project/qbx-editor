@@ -9,6 +9,7 @@ import { ResourceControls } from './resourceControls';
 import { ReferenceBrowser } from './referenceBrowser';
 import { SETTINGS_SCHEMA_SCHEME, SettingsSchemaProvider, type RuleInfo } from './settingsSchema';
 import { SnippetBrowser } from './snippetBrowser';
+import { SqlHighlighting } from './sqlHighlighting';
 
 interface ServerStatus {
     files: number;
@@ -34,6 +35,8 @@ let starting: Promise<void> | undefined;
 let reindexTimer: ReturnType<typeof setTimeout> | undefined;
 let reindexRunning = false;
 let reindexRequested = false;
+let sqlHighlighting: SqlHighlighting | undefined;
+let sqlRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<import('./assistantVscode.js').AssistantApi> {
     output = vscode.window.createOutputChannel('Qbox Lua');
@@ -43,6 +46,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     // Registered before the server starts: a settings file that asks for these schemas is what activates the extension.
     settingsSchema = new SettingsSchemaProvider();
     context.subscriptions.push(settingsSchema, vscode.workspace.registerTextDocumentContentProvider(SETTINGS_SCHEMA_SCHEME, settingsSchema));
+    sqlHighlighting = new SqlHighlighting(context, output);
+    void sqlHighlighting.sync();
     // Where VS Code has hover buttons, this provider shows the server's hovers instead of the client's own.
     const verboseHover = verboseHoverClass();
     const hoverLevels = verboseHover && new HoverLevels(verboseHover, context.globalState, hoverSettings, requestHover);
@@ -83,6 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
 
     context.subscriptions.push(
         { dispose: () => { if (reindexTimer) { clearTimeout(reindexTimer); reindexTimer = undefined; } } },
+        { dispose: () => { if (sqlRefreshTimer) { clearTimeout(sqlRefreshTimer); sqlRefreshTimer = undefined; } } },
         // The server watches Lua files by glob, so a resource folder that is dropped in, renamed or
         // removed only reaches its index through an explicit reindex. The initial discovery is not
         // a change: the server scans the same folders itself on startup.
@@ -151,6 +157,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
             if (event.affectsConfiguration(`${CONFIG_SECTION}.hover`)) {
                 void hoverLevels?.forget();
             }
+            if (event.affectsConfiguration(`${CONFIG_SECTION}.sqlHighlighting`)) {
+                void sqlHighlighting?.sync().then(refreshSqlFunctions);
+            }
         }),
         vscode.window.onDidChangeActiveTextEditor(() => {
             updateStatusVisibility();
@@ -159,6 +168,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         vscode.workspace.onDidSaveTextDocument((document) => {
             if (document.fileName.endsWith('fxmanifest.lua')) {
                 void refreshStatus();
+            }
+            // A saved file may declare another function that takes SQL.
+            if (document.languageId === 'lua') {
+                scheduleSqlRefresh();
             }
         }),
         vscode.workspace.onDidChangeTextDocument(suggestAnnotationTags),
@@ -298,6 +311,7 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
         if (event.newState === State.Running) {
             void refreshStatus();
             void loadRules();
+            void refreshSqlFunctions();
         } else if (event.newState === State.Stopped) {
             setStatus('$(error) Qbox Lua', 'The language server is not running. Click for details.');
         }
@@ -354,6 +368,28 @@ async function fetchStatus(): Promise<ServerStatus | undefined> {
 async function loadRules(): Promise<void> {
     const rules = await client?.sendRequest<RuleInfo[]>('qbx/rules').catch(() => undefined);
     settingsSchema.update(Array.isArray(rules) ? rules : []);
+}
+
+/** Hands the functions that take SQL to the highlighting, unless it is off. A server without `qbx/sqlFunctions` leaves the highlighting as it is. */
+async function refreshSqlFunctions(): Promise<void> {
+    if (!client || client.state !== State.Running || !sqlHighlighting?.enabled()) {
+        return;
+    }
+    const result = await client.sendRequest<{ functions?: unknown }>('qbx/sqlFunctions').catch(() => undefined);
+    if (Array.isArray(result?.functions)) {
+        await sqlHighlighting.sync(result.functions.filter((name): name is string => typeof name === 'string'));
+    }
+}
+
+/** Asks for the functions that take SQL once saves settle. */
+function scheduleSqlRefresh(): void {
+    if (sqlRefreshTimer) {
+        clearTimeout(sqlRefreshTimer);
+    }
+    sqlRefreshTimer = setTimeout(() => {
+        sqlRefreshTimer = undefined;
+        void refreshSqlFunctions();
+    }, 1000);
 }
 
 function setStatus(text: string, tooltip: string): void {
