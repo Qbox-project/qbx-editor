@@ -1,12 +1,49 @@
 {
   "scopeName": "luacats.documentation.injection",
-  "injectionSelector": "L:comment.line.double-dash.documentation.lua",
+  "injectionSelector": "L:comment.line.double-dash.documentation.lua, L:comment.block.lua",
   "patterns": [
     { "include": "#callback" },
     { "include": "#field-visibility" },
-    { "include": "#attributes" }
+    { "include": "#attributes" },
+    { "include": "#cast" },
+    { "include": "#block-cast" },
+    { "include": "#leveled-block-cast" }
   ],
   "repository": {
+    "cast": {
+      "comment": "---@as T after a value. VS Code's Lua grammar has no rule for @as, so its own type rule colors the type as it does for ---@type.",
+      "begin": "(?<=---)[ \\t]*(@as)\\b",
+      "beginCaptures": { "1": { "name": "storage.type.annotation.luacats" } },
+      "end": "(?=[\\n@#])",
+      "patterns": [{ "include": "source.lua#emmydoc.type" }]
+    },
+    "block-cast": {
+      "comment": "--[[@as T]] after a value. VS Code's type rule would take the closing ]] as part of a type name and run the comment on into the code after it, so #cast-type colors the type with the same scopes and the rule ends before the first ]], where Lua ends the comment.",
+      "begin": "(?<=--\\[\\[)[ \\t]*(@as)\\b",
+      "beginCaptures": { "1": { "name": "storage.type.annotation.luacats" } },
+      "end": "(?=\\]\\])|$",
+      "patterns": [{ "include": "#cast-type" }]
+    },
+    "leveled-block-cast": {
+      "comment": "--[==[@as T]==], which can hold a ]] as in string[]]==]. The level of the opening brackets is not known here, so any closing brackets with a level end the rule.",
+      "begin": "(?<==\\[)[ \\t]*(@as)\\b",
+      "beginCaptures": { "1": { "name": "storage.type.annotation.luacats" } },
+      "end": "(?=\\]=+\\])|$",
+      "patterns": [{ "include": "#cast-type" }]
+    },
+    "cast-type": {
+      "comment": "A type in a block comment, with the scopes VS Code's Lua grammar gives the type of ---@type. A ] is taken one at a time, so the closing brackets stay the comment's.",
+      "patterns": [
+        { "match": "\\bfun\\b", "name": "keyword.control.lua" },
+        { "match": "([A-Za-z_]\\w*)[ \\t]*(?=\\??[ \\t]*:)", "captures": { "1": { "name": "entity.name.variable.lua" } } },
+        { "match": "[A-Za-z_][\\w.\\-]*", "name": "support.type.lua" },
+        { "match": "\\.\\.\\.", "name": "constant.language.lua" },
+        { "match": "\\d+(?:\\.\\d+)?", "name": "constant.numeric.lua" },
+        { "match": "'[^']*'", "name": "string.quoted.single.lua" },
+        { "match": "\"[^\"]*\"", "name": "string.quoted.double.lua" },
+        { "match": "[\\[\\]{}()<>|?,:]", "name": "keyword.operator.lua" }
+      ]
+    },
     "callback": {
       "match": "(?<=---)[ \\t]*(@callback)[ \\t]+(register|await|trigger)\\b(?:[ \\t]+([A-Za-z_][\\w.\\-]*))?",
       "captures": {
