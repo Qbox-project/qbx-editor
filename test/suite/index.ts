@@ -384,6 +384,62 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'annotation highlighting colors @as casts in block and line comments',
+        async () => {
+            const fs = await import('node:fs/promises');
+            const os = await import('node:os');
+            const file = vscode.Uri.file(path.join(os.tmpdir(), `qbx-luacats-cast-${process.pid}.lua`));
+            await fs.writeFile(file.fsPath, [
+                "local saved = json.decode('{}') --[[@as SavedAppearance?]]",
+                'local names = {} --[[@as string[] ]]',
+                'local ids = {} --[==[@as integer[]]==]',
+                "local get = load('') --[==[@as fun(id: integer): Item|nil]==]",
+                'print(saved --[[@as table]], 2)',
+                "local other = json.decode('{}') ---@as Outfit?",
+            ].join('\n'));
+            try {
+                const tokens = await vscode.commands.executeCommand<{ c: string; t: string }[]>('_workbench.captureSyntaxTokens', file);
+                const seen = tokens.map((token) => `${JSON.stringify(token.c)} ${token.t}`).join('\n');
+                // Each token is looked for after the previous one, so the same text on different lines is told apart.
+                let from = 0;
+                // VS Code may join the [ and ] of an array type into one token.
+                const matches = (token: { c: string }, text: string) => token.c.trim() === text || (text === '[' && token.c.trim() === '[]');
+                for (const [text, scope] of [
+                    ['@as', 'storage.type.annotation.luacats'],
+                    ['SavedAppearance', 'support.type.lua'],
+                    ['?', 'keyword.operator.lua'],
+                    [']]', 'punctuation.definition.comment.end.lua'],
+                    ['string', 'support.type.lua'],
+                    ['[', 'keyword.operator.lua'],
+                    [']]', 'punctuation.definition.comment.end.lua'],
+                    ['integer', 'support.type.lua'],
+                    ['[', 'keyword.operator.lua'],
+                    [']==]', 'punctuation.definition.comment.end.lua'],
+                    ['fun', 'keyword.control.lua'],
+                    ['id', 'entity.name.variable.lua'],
+                    ['integer', 'support.type.lua'],
+                    ['Item', 'support.type.lua'],
+                    ['|', 'keyword.operator.lua'],
+                    [']==]', 'punctuation.definition.comment.end.lua'],
+                    ['table', 'support.type.lua'],
+                    ['2', 'constant.numeric'],
+                    ['@as', 'storage.type.annotation.luacats'],
+                    ['Outfit', 'support.type.lua'],
+                ]) {
+                    const index = tokens.findIndex((token, i) => i >= from && matches(token, text));
+                    assert.ok(index >= 0, `${text}: not found after token ${from}\n${seen}`);
+                    const scopes = tokens[index].t.split(' ');
+                    assert.ok(scopes.some((name) => name === scope || name.startsWith(`${scope}.`)), `${text}: expected ${scope} in "${tokens[index].t}"\n${seen}`);
+                    from = index + 1;
+                }
+                const two = tokens.find((token) => token.c.trim() === '2');
+                assert.ok(two && !two.t.includes('comment'), `the code after a cast is no comment: ${two?.t}`);
+            } finally {
+                await fs.rm(file.fsPath, { force: true });
+            }
+        },
+    ],
+    [
         'callback wrapper call snippets reopen suggestions in the name',
         async () => {
             const shared = await vscode.workspace.openTextDocument(workspaceFile('myresource/shared/config.lua'));
