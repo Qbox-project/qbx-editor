@@ -289,6 +289,9 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
         outputChannel: output,
         initializationOptions: serverSettings(),
         synchronize: { configurationSection: CONFIG_SECTION },
+        // Doc comments may use HTML such as `<b>` and `<br>`, which VS Code renders from the safe
+        // subset it allows, as the LuaLS client has it do.
+        markdown: { supportHtml: true },
         // The provider that `activate` registers shows hovers with buttons where VS Code has them.
         middleware: verboseHoverClass() ? { provideHover: () => undefined } : undefined,
     };

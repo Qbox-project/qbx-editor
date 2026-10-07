@@ -113,6 +113,20 @@ const tests: Test[] = [
         },
     ],
     [
+        'hovers render the HTML that doc comments write, as the LuaLS client has them do',
+        async () => {
+            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const position = positionOf(document, 'MyLib.round(1.2345', 8);
+            const hovers = await waitFor('hover', async () => {
+                const result = await vscode.commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', document.uri, position);
+                return hoverText(result ?? []).includes('MyLib.round') ? result : undefined;
+            });
+            const contents = hovers.flatMap((hover) => hover.contents).filter((content): content is vscode.MarkdownString => content instanceof vscode.MarkdownString);
+            assert.ok(contents.length > 0, 'the hover should be markdown');
+            assert.ok(contents.every((content) => content.supportHtml), 'the markdown should allow HTML such as <b> and <br>');
+        },
+    ],
+    [
         'hovers open at qbxLua.hover.verbosity with buttons to show more and less',
         async () => {
             const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
