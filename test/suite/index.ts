@@ -398,6 +398,49 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'annotation highlighting colors the targets and signatures of @extend',
+        async () => {
+            const fs = await import('node:fs/promises');
+            const os = await import('node:os');
+            const file = vscode.Uri.file(path.join(os.tmpdir(), `qbx-luacats-extend-${process.pid}.lua`));
+            await fs.writeFile(file.fsPath, [
+                '---@extend OnAction (server) fun(action: "jobUpdated", handler: fun(job: Job)): number',
+                '---@extend lib.callback.register fun(name: string)',
+                '---@extend Player:on fun(name: string)',
+            ].join('\n'));
+            try {
+                const tokens = await vscode.commands.executeCommand<{ c: string; t: string }[]>('_workbench.captureSyntaxTokens', file);
+                const seen = tokens.map((token) => `${JSON.stringify(token.c)} ${token.t}`).join('\n');
+                // Each token is looked for after the previous one, so the same text on different lines is told apart.
+                let from = 0;
+                for (const [text, scope] of [
+                    ['@extend', 'storage.type.annotation.luacats'],
+                    ['OnAction', 'entity.name.function.luacats'],
+                    ['server', 'storage.modifier.attribute.luacats'],
+                    ['fun', 'keyword.control.lua'],
+                    ['action', 'entity.name.variable.lua'],
+                    ['Job', 'support.type.lua'],
+                    ['number', 'support.type.lua'],
+                    ['@extend', 'storage.type.annotation.luacats'],
+                    ['lib.callback', 'support.class.luacats'],
+                    ['.', 'keyword.operator.luacats'],
+                    ['register', 'entity.name.function.luacats'],
+                    ['string', 'support.type.lua'],
+                    ['Player', 'support.class.luacats'],
+                    [':', 'keyword.operator.luacats'],
+                    ['on', 'entity.name.function.luacats'],
+                ]) {
+                    const index = tokens.findIndex((token, i) => i >= from && token.c.trim() === text);
+                    assert.ok(index >= 0, `${text}: not found after token ${from}\n${seen}`);
+                    assert.ok(tokens[index].t.split(' ').includes(scope), `${text}: expected ${scope} in "${tokens[index].t}"\n${seen}`);
+                    from = index + 1;
+                }
+            } finally {
+                await fs.rm(file.fsPath, { force: true });
+            }
+        },
+    ],
+    [
         'annotation highlighting colors @as casts in block and line comments',
         async () => {
             const fs = await import('node:fs/promises');
