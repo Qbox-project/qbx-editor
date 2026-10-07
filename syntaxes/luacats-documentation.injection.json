@@ -3,6 +3,7 @@
   "injectionSelector": "L:comment.line.double-dash.documentation.lua, L:comment.block.lua",
   "patterns": [
     { "include": "#callback" },
+    { "include": "#extend" },
     { "include": "#field-visibility" },
     { "include": "#attributes" },
     { "include": "#cast" },
@@ -51,6 +52,21 @@
         "2": { "name": "storage.modifier.luacats" },
         "3": { "name": "entity.name.namespace.luacats" }
       }
+    },
+    "extend": {
+      "comment": "---@extend Target (server) fun(...): T, which adds a signature to a function declared elsewhere. VS Code's Lua grammar has no rule for @extend, so this one colors the path of the function, the attributes as on @overload, and the signature with the type rule of @overload.",
+      "begin": "(?<=---)[ \\t]*(@extend)\\b(?:[ \\t]+(?:([A-Za-z_][\\w.]*)([.:]))?([A-Za-z_]\\w*)(?![\\w.:]))?(?:[ \\t]*(\\()[ \\t]*([A-Za-z]+(?:[ \\t]*,[ \\t]*[A-Za-z]+)*)[ \\t]*(\\)))?",
+      "beginCaptures": {
+        "1": { "name": "storage.type.annotation.luacats" },
+        "2": { "name": "support.class.luacats" },
+        "3": { "name": "keyword.operator.luacats" },
+        "4": { "name": "entity.name.function.luacats" },
+        "5": { "name": "punctuation.definition.attribute.begin.luacats" },
+        "6": { "name": "storage.modifier.attribute.luacats" },
+        "7": { "name": "punctuation.definition.attribute.end.luacats" }
+      },
+      "end": "(?=[\\n@#])",
+      "patterns": [{ "include": "source.lua#emmydoc.type" }]
     },
     "field-visibility": {
       "match": "(?<=@field )(public|private|protected|package)\\b",
