@@ -85,10 +85,7 @@
           "contentName": "meta.embedded.block.sql",
           "patterns": [
             {
-              "include": "source.lua#escaped_char"
-            },
-            {
-              "include": "source.sql"
+              "include": "#sql-in-single"
             }
           ]
         },
@@ -108,10 +105,7 @@
           "contentName": "meta.embedded.block.sql",
           "patterns": [
             {
-              "include": "source.lua#escaped_char"
-            },
-            {
-              "include": "source.sql"
+              "include": "#sql-in-double"
             }
           ]
         },
@@ -131,7 +125,7 @@
           "contentName": "meta.embedded.block.sql",
           "patterns": [
             {
-              "include": "source.sql"
+              "include": "#sql-in-multiline"
             }
           ]
         },
@@ -158,10 +152,7 @@
           "contentName": "meta.embedded.block.sql",
           "patterns": [
             {
-              "include": "source.lua#escaped_char"
-            },
-            {
-              "include": "source.sql"
+              "include": "#sql-in-single"
             }
           ]
         },
@@ -181,10 +172,7 @@
           "contentName": "meta.embedded.block.sql",
           "patterns": [
             {
-              "include": "source.lua#escaped_char"
-            },
-            {
-              "include": "source.sql"
+              "include": "#sql-in-double"
             }
           ]
         },
@@ -204,9 +192,311 @@
           "contentName": "meta.embedded.block.sql",
           "patterns": [
             {
-              "include": "source.sql"
+              "include": "#sql-in-multiline"
             }
           ]
+        }
+      ]
+    },
+    "sql-in-single": {
+      "patterns": [
+        {
+          "include": "source.lua#escaped_char"
+        },
+        {
+          "match": "^[ \\t]+(?=--)",
+          "name": "punctuation.whitespace.comment.leading.sql"
+        },
+        {
+          "begin": "--",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "end": "(?='|$|$)",
+          "name": "comment.line.double-dash.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "end": "\\*/|(?='|$)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "name": "comment.block",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "\"|(?='|$)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.double.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "`",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "`|(?='|$)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.other.backtick.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "\\[",
+          "end": "\\]|(?='|$)",
+          "name": "text.bracketed",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "include": "source.sql"
+        }
+      ]
+    },
+    "sql-in-double": {
+      "patterns": [
+        {
+          "include": "source.lua#escaped_char"
+        },
+        {
+          "match": "^[ \\t]+(?=--)",
+          "name": "punctuation.whitespace.comment.leading.sql"
+        },
+        {
+          "begin": "--",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "end": "(?=\"|$|$)",
+          "name": "comment.line.double-dash.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "end": "\\*/|(?=\"|$)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "name": "comment.block",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "(?:(?<![a-zA-Z0-9_])N)?'",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "'|(?=\"|$)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.single.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "`",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "`|(?=\"|$)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.other.backtick.sql",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "begin": "\\[",
+          "end": "\\]|(?=\"|$)",
+          "name": "text.bracketed",
+          "patterns": [
+            {
+              "include": "source.lua#escaped_char"
+            }
+          ]
+        },
+        {
+          "include": "source.sql"
+        }
+      ]
+    },
+    "sql-in-multiline": {
+      "patterns": [
+        {
+          "match": "^[ \\t]+(?=--)",
+          "name": "punctuation.whitespace.comment.leading.sql"
+        },
+        {
+          "begin": "--",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "end": "(?=\\]=*\\]|$)",
+          "name": "comment.line.double-dash.sql",
+          "patterns": []
+        },
+        {
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "end": "\\*/|(?=\\]=*\\])",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.sql"
+            }
+          },
+          "name": "comment.block",
+          "patterns": []
+        },
+        {
+          "begin": "(?:(?<![a-zA-Z0-9_])N)?'",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "'|(?=\\]=*\\])",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.single.sql",
+          "patterns": [
+            {
+              "include": "source.sql#string_escape"
+            }
+          ]
+        },
+        {
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "\"|(?=\\]=*\\])",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.double.sql",
+          "patterns": [
+            {
+              "include": "source.sql#string_escape"
+            }
+          ]
+        },
+        {
+          "begin": "`",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.sql"
+            }
+          },
+          "end": "`|(?=\\]=*\\])",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.sql"
+            }
+          },
+          "name": "string.quoted.other.backtick.sql",
+          "patterns": [
+            {
+              "include": "source.sql#string_escape"
+            }
+          ]
+        },
+        {
+          "begin": "\\[",
+          "end": "\\]|(?=\\]=*\\])",
+          "name": "text.bracketed",
+          "patterns": []
+        },
+        {
+          "include": "source.sql"
         }
       ]
     }
