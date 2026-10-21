@@ -30,8 +30,8 @@ function grammarFiles(): Record<string, string> {
     return files;
 }
 
-/** For each line of `text`, the parts that the grammars read as SQL, with the given grammar of query functions and, by path, grammar files in place of the shipped ones. */
-async function sqlParts(text: string, functions: readonly string[] = [], replaced: Record<string, string> = {}): Promise<string[]> {
+/** The tokens of each line of `text`, with the given grammar of query functions and, by path, grammar files in place of the shipped ones. */
+async function luaTokens(text: string, functions: readonly string[] = [], replaced: Record<string, string> = {}): Promise<{ line: string; tokens: textmate.IToken[] }[]> {
     wasm ??= oniguruma.loadWASM(fs.readFileSync(path.join(path.dirname(require.resolve('vscode-oniguruma')), 'onig.wasm')).buffer);
     await wasm;
     const files = grammarFiles();
@@ -58,12 +58,17 @@ async function sqlParts(text: string, functions: readonly string[] = [], replace
     return text.split('\n').map((line) => {
         const result = grammar.tokenizeLine(line, state);
         state = result.ruleStack;
-        return result.tokens
-            .filter((token) => token.scopes.includes('meta.embedded.block.sql'))
-            .map((token) => line.slice(token.startIndex, token.endIndex))
-            .join('')
-            .trim();
+        return { line, tokens: result.tokens };
     });
+}
+
+/** For each line of `text`, the parts that the grammars read as SQL, with the grammars `luaTokens` is given. */
+async function sqlParts(text: string, functions: readonly string[] = [], replaced: Record<string, string> = {}): Promise<string[]> {
+    return (await luaTokens(text, functions, replaced)).map(({ line, tokens }) => tokens
+        .filter((token) => token.scopes.includes('meta.embedded.block.sql'))
+        .map((token) => line.slice(token.startIndex, token.endIndex))
+        .join('')
+        .trim());
 }
 
 async function highlightsDatabaseCalls(): Promise<void> {
@@ -167,6 +172,22 @@ async function highlightsCallsOfQueryFunctions(): Promise<void> {
     assert.deepEqual(parts, ['SELECT 1', 'SELECT 2', 'SELECT 3', 'SELECT 4', '', '', '']);
 }
 
+async function leavesDeclarationsOfQueryFunctionsAlone(): Promise<void> {
+    const lines = await luaTokens([
+        'function Fetch(query, params) end',
+        'local function Fetch(query, params) end',
+        'function DB.fetch(query, params) end',
+        'function DB:query(query, params) end',
+        'function MySQL.query(query, params) end',
+    ].join('\n'), ['Fetch', 'DB.fetch', 'DB:query']);
+    for (const { line, tokens } of lines) {
+        const scopes = (text: string) => tokens.filter((token) => line.slice(token.startIndex, token.endIndex) === text).map((token) => token.scopes.at(-1));
+        const name = /(\w+)\(/.exec(line)?.[1] ?? '';
+        assert.deepEqual(scopes(name).slice(0, 1), ['entity.name.function.lua'], `${line}: the name is declared`);
+        assert.deepEqual(scopes('params'), ['variable.parameter.function.lua'], `${line}: params is a parameter`);
+    }
+}
+
 /** A folder holding the two SQL grammars as the extension ships them, and a context whose extension lives there. */
 async function shippedGrammars(run: (folder: string, context: (mode: vscode.ExtensionMode) => vscode.ExtensionContext) => Promise<void>): Promise<void> {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qbx-sql-'));
@@ -257,6 +278,7 @@ const tests: Test[] = [
     ['---@language sql highlights the strings on the next line', highlightsMarkedStrings],
     ['---@language sql ends after a next line that ends in a comment', endsMarkedStringsAfterACommentedLine],
     ['calls of functions that take sql highlight their query', highlightsCallsOfQueryFunctions],
+    ['declarations of functions that take sql keep their declaration colors', leavesDeclarationsOfQueryFunctionsAlone],
     ['the grammar of query functions holds every workspace without flipping between windows', writesTheGrammarOfQueryFunctions],
     ['an extension under development leaves its grammars alone', leavesTheGrammarOfADevelopmentHostAlone],
     ['qbxLua.sqlHighlighting.enable turns the grammars off and back on', turnsTheHighlightingOffAndOn],
