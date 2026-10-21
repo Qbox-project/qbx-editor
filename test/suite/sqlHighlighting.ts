@@ -197,6 +197,18 @@ async function startsCallsWithoutALookbehind(): Promise<void> {
     }
 }
 
+async function injectsOnlyGrammarsThatHighlight(): Promise<void> {
+    for (const [name, grammar] of [
+        ['without functions', sqlFunctionsGrammar([])],
+        ['with functions while off', sqlFunctionsGrammar(['DB.fetch'], false)],
+        ['of database calls while off', disabledSqlGrammar()],
+    ] as const) {
+        assert.equal(grammar.injectionSelector, undefined, `the grammar ${name} highlights nothing, so it is not injected`);
+    }
+    assert.ok(sqlGrammar().injectionSelector, 'the grammar of database calls is injected');
+    assert.ok(sqlFunctionsGrammar(['DB.fetch']).injectionSelector, 'the grammar of query functions is injected once it has some');
+}
+
 /** A folder holding the two SQL grammars as the extension ships them, and a context whose extension lives there. */
 async function shippedGrammars(run: (folder: string, context: (mode: vscode.ExtensionMode) => vscode.ExtensionContext) => Promise<void>): Promise<void> {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qbx-sql-'));
@@ -289,6 +301,7 @@ const tests: Test[] = [
     ['calls of functions that take sql highlight their query', highlightsCallsOfQueryFunctions],
     ['declarations of functions that take sql keep their declaration colors', leavesDeclarationsOfQueryFunctionsAlone],
     ['the patterns tried along every Lua line start at a name or its separator, not a lookbehind', startsCallsWithoutALookbehind],
+    ['SQL grammars that highlight nothing are not injected', injectsOnlyGrammarsThatHighlight],
     ['the grammar of query functions holds every workspace without flipping between windows', writesTheGrammarOfQueryFunctions],
     ['an extension under development leaves its grammars alone', leavesTheGrammarOfADevelopmentHostAlone],
     ['qbxLua.sqlHighlighting.enable turns the grammars off and back on', turnsTheHighlightingOffAndOn],
