@@ -165,9 +165,12 @@ export function sqlGrammar(): Record<string, unknown> {
     };
 }
 
-/** The `sqlGrammar` that highlights nothing, which `qbxLua.sqlHighlighting.enable` turns off to. */
+/**
+ * The `sqlGrammar` that highlights nothing, which `qbxLua.sqlHighlighting.enable` turns off to.
+ * Without an injection selector it is not injected, so it takes no time on each line.
+ */
 export function disabledSqlGrammar(): Record<string, unknown> {
-    return { scopeName: 'lua.sql.injection', injectionSelector: INJECTION_SELECTOR, patterns: [], repository: { 'sql-strings': { patterns: [] } } };
+    return { scopeName: 'lua.sql.injection', patterns: [], repository: { 'sql-strings': { patterns: [] } } };
 }
 
 /**
@@ -195,12 +198,16 @@ export function sqlCallPattern(functions: readonly string[]): string | undefined
     return branches.length > 0 ? String.raw`(?:${branches.join('|')})\s*\(` : undefined;
 }
 
-/** The grammar that highlights the first argument of calls of `functions` as SQL, like the built-in database calls, unless it is off. */
+/**
+ * The grammar that highlights the first argument of calls of `functions` as SQL, like the built-in
+ * database calls, unless it is off. With nothing to highlight it has no injection selector, so it
+ * is not injected and takes no time on each line.
+ */
 export function sqlFunctionsGrammar(functions: readonly string[], enabled = true): Record<string, unknown> {
     const begin = enabled ? sqlCallPattern(functions) : undefined;
     return {
         scopeName: 'lua.sql-functions.injection',
-        injectionSelector: INJECTION_SELECTOR,
+        ...(begin ? { injectionSelector: INJECTION_SELECTOR } : {}),
         functions,
         patterns: begin
             ? [{
