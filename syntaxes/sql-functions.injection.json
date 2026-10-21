@@ -1,6 +1,6 @@
 {
   "scopeName": "lua.sql-functions.injection",
-  "injectionSelector": "L:source.lua -comment -string -meta.embedded.block.sql",
+  "injectionSelector": "L:source.lua -comment -string -meta.embedded.block.sql -meta.function.lua",
   "functions": [],
   "patterns": []
 }

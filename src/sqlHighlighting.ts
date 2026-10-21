@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 export const SQL_GRAMMAR = 'syntaxes/sql.injection.json';
 /** The grammar that highlights SQL in calls of the workspace's own query functions. VS Code reads it when a window starts. */
 export const SQL_FUNCTIONS_GRAMMAR = 'syntaxes/sql-functions.injection.json';
-const INJECTION_SELECTOR = 'L:source.lua -comment -string -meta.embedded.block.sql';
+const INJECTION_SELECTOR = 'L:source.lua -comment -string -meta.embedded.block.sql -meta.function.lua';
 
 const QUERY_METHODS = ['query', 'single', 'scalar', 'insert', 'update', 'prepare', 'rawExecute', 'execute'];
 const LEGACY_METHODS = ['fetchAll', 'fetchScalar', 'fetchSingle', 'execute', 'insert', 'store'];
