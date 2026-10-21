@@ -497,6 +497,28 @@ CallbackESX.TriggerServerCallback('editor:lookup', function(result) end, 42)
         },
     ],
     [
+        'block comments that hold ---@as or ---@extend end at their closing brackets',
+        async () => {
+            const fs = await import('node:fs/promises');
+            const os = await import('node:os');
+            const file = vscode.Uri.file(path.join(os.tmpdir(), `qbx-luacats-block-${process.pid}.lua`));
+            await fs.writeFile(file.fsPath, [
+                '--[[ local saved = load() ---@as string ]] local first = 1',
+                '--[==[ ---@extend Foo fun(): string ]==] local second = 2',
+            ].join('\n'));
+            try {
+                const tokens = await vscode.commands.executeCommand<{ c: string; t: string }[]>('_workbench.captureSyntaxTokens', file);
+                const seen = tokens.map((token) => `${JSON.stringify(token.c)} ${token.t}`).join('\n');
+                for (const name of ['first', 'second']) {
+                    const token = tokens.find((candidate) => candidate.c.trim() === name);
+                    assert.ok(token && !token.t.includes('comment'), `${name} is code after the comment\n${seen}`);
+                }
+            } finally {
+                await fs.rm(file.fsPath, { force: true });
+            }
+        },
+    ],
+    [
         'callback wrapper call snippets reopen suggestions in the name',
         async () => {
             const shared = await vscode.workspace.openTextDocument(workspaceFile('myresource/shared/config.lua'));
