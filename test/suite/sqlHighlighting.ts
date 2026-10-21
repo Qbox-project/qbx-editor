@@ -144,6 +144,16 @@ async function highlightsMarkedStrings(): Promise<void> {
     assert.deepEqual(parts, ['', '', 'SELECT * FROM vehicles', '', '', '', 'SELECT * FROM vehicles WHERE id = ?', '']);
 }
 
+async function endsMarkedStringsAfterACommentedLine(): Promise<void> {
+    const parts = await sqlParts([
+        '---@language sql',
+        "local query = 'SELECT 1' -- the first query",
+        "local name = 'Bob' -- a default",
+        "local job = 'police'",
+    ].join('\n'));
+    assert.deepEqual(parts, ['', 'SELECT 1', '', '']);
+}
+
 async function highlightsCallsOfQueryFunctions(): Promise<void> {
     const parts = await sqlParts([
         "DB.fetch('SELECT 1')",
@@ -245,6 +255,7 @@ const tests: Test[] = [
     ['database calls highlight their query', highlightsDatabaseCalls],
     ['SQL comments, strings and quoted names end with the Lua string', endsSqlWithTheLuaString],
     ['---@language sql highlights the strings on the next line', highlightsMarkedStrings],
+    ['---@language sql ends after a next line that ends in a comment', endsMarkedStringsAfterACommentedLine],
     ['calls of functions that take sql highlight their query', highlightsCallsOfQueryFunctions],
     ['the grammar of query functions holds every workspace without flipping between windows', writesTheGrammarOfQueryFunctions],
     ['an extension under development leaves its grammars alone', leavesTheGrammarOfADevelopmentHostAlone],
