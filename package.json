@@ -387,6 +387,13 @@
         ]
       },
       {
+        "scopeName": "luacats.cast.injection",
+        "path": "./syntaxes/luacats-cast.injection.json",
+        "injectTo": [
+          "source.lua"
+        ]
+      },
+      {
         "scopeName": "lua.sql.injection",
         "path": "./syntaxes/sql.injection.json",
         "injectTo": [
