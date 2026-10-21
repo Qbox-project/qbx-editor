@@ -188,6 +188,15 @@ async function leavesDeclarationsOfQueryFunctionsAlone(): Promise<void> {
     }
 }
 
+async function startsCallsWithoutALookbehind(): Promise<void> {
+    const sql = sqlGrammar() as { patterns: { include: string }[]; repository: Record<string, { begin: string }> };
+    const functions = sqlFunctionsGrammar(['Fetch', 'DB.fetch', 'DB:query', 'exports.my-db:scalar']) as { patterns: { begin: string }[] };
+    const begins = [...sql.patterns.map(({ include }) => sql.repository[include.slice(1)].begin), ...functions.patterns.map(({ begin }) => begin)];
+    for (const begin of begins) {
+        assert.doesNotMatch(begin, /(?:^|[(|])\(\?<[=!]/, `${begin.slice(0, 80)}: a branch that starts with a lookbehind is tried at every character of a line`);
+    }
+}
+
 /** A folder holding the two SQL grammars as the extension ships them, and a context whose extension lives there. */
 async function shippedGrammars(run: (folder: string, context: (mode: vscode.ExtensionMode) => vscode.ExtensionContext) => Promise<void>): Promise<void> {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qbx-sql-'));
@@ -279,6 +288,7 @@ const tests: Test[] = [
     ['---@language sql ends after a next line that ends in a comment', endsMarkedStringsAfterACommentedLine],
     ['calls of functions that take sql highlight their query', highlightsCallsOfQueryFunctions],
     ['declarations of functions that take sql keep their declaration colors', leavesDeclarationsOfQueryFunctionsAlone],
+    ['the patterns tried along every Lua line start at a name or its separator, not a lookbehind', startsCallsWithoutALookbehind],
     ['the grammar of query functions holds every workspace without flipping between windows', writesTheGrammarOfQueryFunctions],
     ['an extension under development leaves its grammars alone', leavesTheGrammarOfADevelopmentHostAlone],
     ['qbxLua.sqlHighlighting.enable turns the grammars off and back on', turnsTheHighlightingOffAndOn],
