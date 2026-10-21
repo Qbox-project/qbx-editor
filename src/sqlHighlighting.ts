@@ -16,6 +16,20 @@ function exportPrefixes(resource: string): string[] {
     return [String.raw`\bexports\.${resource}:`, String.raw`\bexports\['${resource}'\]:`, String.raw`\bexports\["${resource}"\]:`];
 }
 
+/**
+ * `names` written after one of `prefixes`, which end in the `.` or `:` that a call pattern starts
+ * at. Each name checks its prefix in a lookbehind after it, since a pattern that starts with a
+ * lookbehind is tried at every character of a line.
+ */
+function after(prefixes: readonly string[], names: readonly string[]): string {
+    return names.map((name) => `${name}(?<=${prefixes.map((prefix) => prefix + name).join('|')})`).join('|');
+}
+
+/** The begin of a call of one of the `after` names, with the name as capture 1. */
+function callBegin(names: readonly string[]): string {
+    return String.raw`[.:](${names.join('|')})\s*(\()`;
+}
+
 function sqlString(quote: string, kind: string, start = ''): Record<string, unknown> {
     return {
         begin: quote + start,
@@ -82,22 +96,23 @@ function sqlContent(stop: string, luaQuote?: string): Record<string, unknown> {
 /**
  * The grammar that highlights SQL with VS Code's own SQL grammar: in the query argument of oxmysql,
  * mysql-async and ghmattimysql calls, in the queries a transaction is given, and in the strings
- * that start on the line below `---@language sql`. Call names are matched with what precedes them in
- * a fixed-length lookbehind, so the Lua grammar still colors the rest of the path.
+ * that start on the line below `---@language sql`. A call is matched from the `.` or `:` before its
+ * name, with the rest of its path checked in a fixed-length lookbehind, so the Lua grammar still
+ * colors that path.
  */
 export function sqlGrammar(): Record<string, unknown> {
     const calls = [
-        String.raw`(?<=\bMySQL\.)(?:${QUERY_METHODS.join('|')})`,
-        String.raw`(?<=${QUERY_METHODS.map((method) => String.raw`\bMySQL\.${method}\.`).join('|')})await`,
-        String.raw`(?<=\bMySQL\.Async\.|\bMySQL\.Sync\.)(?:${LEGACY_METHODS.join('|')})`,
-        String.raw`(?<=${exportPrefixes('oxmysql').join('|')})(?:${OXMYSQL_EXPORTS.join('|')})(?:_async|Sync)?`,
-        String.raw`(?<=${exportPrefixes('ghmattimysql').join('|')})(?:execute|scalar)(?:Sync)?`,
+        after([String.raw`\bMySQL\.`], QUERY_METHODS),
+        after(QUERY_METHODS.map((method) => String.raw`\bMySQL\.${method}\.`), ['await']),
+        after([String.raw`\bMySQL\.Async\.`, String.raw`\bMySQL\.Sync\.`], LEGACY_METHODS),
+        after(exportPrefixes('oxmysql'), OXMYSQL_EXPORTS.flatMap((method) => [method, `${method}_async`, `${method}Sync`])),
+        after(exportPrefixes('ghmattimysql'), ['execute', 'executeSync', 'scalar', 'scalarSync']),
     ];
     const transactions = [
-        String.raw`(?<=\bMySQL\.)transaction`,
-        String.raw`(?<=\bMySQL\.transaction\.)await`,
-        String.raw`(?<=${exportPrefixes('oxmysql').join('|')})transaction(?:_async)?`,
-        String.raw`(?<=${exportPrefixes('ghmattimysql').join('|')})transaction(?:Sync)?`,
+        after([String.raw`\bMySQL\.`], ['transaction']),
+        after([String.raw`\bMySQL\.transaction\.`], ['await']),
+        after(exportPrefixes('oxmysql'), ['transaction', 'transaction_async']),
+        after(exportPrefixes('ghmattimysql'), ['transaction', 'transactionSync']),
     ];
     const statement = String.raw`(?=\s*(?i:select|insert|update|delete|replace|with|create|alter|drop|truncate|call|set)\b)`;
     return {
@@ -130,14 +145,14 @@ export function sqlGrammar(): Record<string, unknown> {
             },
             call: {
                 comment: 'The first argument of an oxmysql, mysql-async or ghmattimysql call that takes a query.',
-                begin: String.raw`(${calls.join('|')})\s*(\()`,
+                begin: callBegin(calls),
                 beginCaptures: { 1: { name: 'support.function.any-method.lua' } },
                 end: '(?=[,)])',
                 patterns: [{ include: '#sql-strings' }, { include: 'source.lua' }],
             },
             transaction: {
                 comment: 'The queries a transaction is given: long strings, and short ones that start with a statement.',
-                begin: String.raw`(${transactions.join('|')})\s*(\()`,
+                begin: callBegin(transactions),
                 beginCaptures: { 1: { name: 'support.function.any-method.lua' } },
                 end: String.raw`\)`,
                 patterns: [sqlString("'", 'single', statement), sqlString('"', 'double', statement), LONG_SQL_STRING, { include: 'source.lua' }],
@@ -156,25 +171,28 @@ export function disabledSqlGrammar(): Record<string, unknown> {
 }
 
 /**
- * The pattern that matches the name of a call of one of `functions`, as `qbx/sqlFunctions` writes
- * them (`Fetch`, `DB.fetch`, `DB:query`, `exports.mydb:scalar`), with what precedes it in a
- * fixed-length lookbehind, so the Lua grammar still colors the rest of the path.
+ * The pattern that matches a call of one of `functions`, as `qbx/sqlFunctions` writes them
+ * (`Fetch`, `DB.fetch`, `DB:query`, `exports.mydb:scalar`), with the name as capture 1 or 2. A name
+ * after a `.` or `:` is matched from there, with the rest of its path checked in a fixed-length
+ * lookbehind, so the Lua grammar still colors that path.
  */
 export function sqlCallPattern(functions: readonly string[]): string | undefined {
     const escape = (text: string) => text.replace(/[.[\]()|?*+^$\\]/g, (char) => `\\${char}`);
-    const alternatives = functions.map((name) => {
+    const separated: string[] = [];
+    const bare: string[] = [];
+    for (const name of functions) {
         const exported = /^exports\.([\w-]+):(\w+)$/.exec(name);
-        if (exported) {
-            const [, resource, method] = exported;
-            return `(?<=${exportPrefixes(resource).join('|')})${method}`;
-        }
         const split = Math.max(name.lastIndexOf('.'), name.lastIndexOf(':'));
-        if (split < 0) {
-            return String.raw`(?<![.:\w])` + escape(name);
+        if (exported) {
+            separated.push(after(exportPrefixes(exported[1]), [exported[2]]));
+        } else if (split >= 0) {
+            separated.push(after([String.raw`\b${escape(name.slice(0, split + 1))}`], [escape(name.slice(split + 1))]));
+        } else {
+            bare.push(String.raw`${escape(name)}(?<![.:\w]${escape(name)})`);
         }
-        return String.raw`(?<=\b${escape(name.slice(0, split + 1))})${escape(name.slice(split + 1))}`;
-    });
-    return alternatives.length > 0 ? String.raw`(${alternatives.join('|')})\s*(\()` : undefined;
+    }
+    const branches = [...(separated.length > 0 ? [String.raw`[.:](${separated.join('|')})`] : []), ...(bare.length > 0 ? [`(${bare.join('|')})`] : [])];
+    return branches.length > 0 ? String.raw`(?:${branches.join('|')})\s*\(` : undefined;
 }
 
 /** The grammar that highlights the first argument of calls of `functions` as SQL, like the built-in database calls, unless it is off. */
@@ -187,7 +205,7 @@ export function sqlFunctionsGrammar(functions: readonly string[], enabled = true
         patterns: begin
             ? [{
                 begin,
-                beginCaptures: { 1: { name: 'support.function.any-method.lua' } },
+                beginCaptures: { 1: { name: 'support.function.any-method.lua' }, 2: { name: 'support.function.any-method.lua' } },
                 end: '(?=[,)])',
                 patterns: [{ include: 'lua.sql.injection#sql-strings' }, { include: 'source.lua' }],
             }]
