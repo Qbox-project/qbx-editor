@@ -9,20 +9,6 @@ import { SQL_FUNCTIONS_GRAMMAR, SQL_GRAMMAR, SqlHighlighting, disabledSqlGrammar
 
 type Test = [name: string, body: () => void | Promise<void>];
 
-class MemoryMemento implements vscode.Memento {
-    readonly values = new Map<string, unknown>();
-
-    keys(): readonly string[] { return [...this.values.keys()]; }
-    get<T>(key: string): T | undefined;
-    get<T>(key: string, defaultValue: T): T;
-    get<T>(key: string, defaultValue?: T): T | undefined {
-        return this.values.has(key) ? this.values.get(key) as T : defaultValue;
-    }
-    async update(key: string, value: unknown): Promise<void> {
-        this.values.set(key, value);
-    }
-}
-
 let wasm: Promise<void> | undefined;
 
 /** The paths of the grammars a Lua file uses: VS Code's own Lua and SQL grammars, and the injections of this extension. */
@@ -141,51 +127,78 @@ async function highlightsCallsOfQueryFunctions(): Promise<void> {
 }
 
 /** A folder holding the two SQL grammars as the extension ships them, and a context whose extension lives there. */
-async function shippedGrammars(globalState: MemoryMemento, run: (folder: string, context: vscode.ExtensionContext) => Promise<void>): Promise<void> {
+async function shippedGrammars(run: (folder: string, context: (mode: vscode.ExtensionMode) => vscode.ExtensionContext) => Promise<void>): Promise<void> {
     const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'qbx-sql-'));
     try {
         fs.mkdirSync(path.join(folder, 'syntaxes'));
         fs.writeFileSync(path.join(folder, SQL_GRAMMAR), grammarText(sqlGrammar()));
         fs.writeFileSync(path.join(folder, SQL_FUNCTIONS_GRAMMAR), grammarText(sqlFunctionsGrammar([])));
-        await run(folder, { globalState, asAbsolutePath: (relative: string) => path.join(folder, relative) } as unknown as vscode.ExtensionContext);
+        await run(folder, (extensionMode) => ({ extensionMode, asAbsolutePath: (relative: string) => path.join(folder, relative) }) as unknown as vscode.ExtensionContext);
     } finally {
         fs.rmSync(folder, { recursive: true, force: true });
     }
 }
 
+/** A `SqlHighlighting` whose reload prompts are collected instead of shown. */
+function highlighting(context: vscode.ExtensionContext, enabled: () => boolean): { highlighting: SqlHighlighting; prompts: string[] } {
+    const result = new SqlHighlighting(context, vscode.window.createOutputChannel('qbx-sql-test'), enabled);
+    const prompts: string[] = [];
+    (result as unknown as { offerReload(message: string): void }).offerReload = (message) => prompts.push(message);
+    return { highlighting: result, prompts };
+}
+
 async function writesTheGrammarOfQueryFunctions(): Promise<void> {
-    const globalState = new MemoryMemento();
-    const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
-    assert.ok(workspace, 'the fixture workspace should be open');
-    globalState.values.set('qbxLua.sqlFunctions', { 'file:///other': ['Other.query'] });
-    await shippedGrammars(globalState, async (folder, context) => {
+    await shippedGrammars(async (folder, context) => {
         const grammar = path.join(folder, SQL_FUNCTIONS_GRAMMAR);
-        const highlighting = new SqlHighlighting(context, vscode.window.createOutputChannel('qbx-sql-test'), () => true);
-        await highlighting.sync(['DB.fetch']);
-        const written = JSON.parse(fs.readFileSync(grammar, 'utf8')) as { functions: string[] };
-        assert.deepEqual(written.functions, ['DB.fetch', 'Other.query'], 'the grammar holds the functions of every workspace');
-        assert.deepEqual(globalState.values.get('qbxLua.sqlFunctions'), { 'file:///other': ['Other.query'], [workspace]: ['DB.fetch'] });
+        const listed = () => (JSON.parse(fs.readFileSync(grammar, 'utf8')) as { functions: string[] }).functions;
+        const first = highlighting(context(vscode.ExtensionMode.Production), () => true);
+        const second = highlighting(context(vscode.ExtensionMode.Production), () => true);
+        await first.highlighting.sync(['DB.fetch']);
+        assert.deepEqual(listed(), ['DB.fetch']);
+        assert.equal(first.prompts.length, 1, 'a new function offers a reload');
+        for (let round = 0; round < 3; round++) {
+            await second.highlighting.sync(['Other.query']);
+            await second.highlighting.sync([]);
+            await first.highlighting.sync(['DB.fetch']);
+        }
+        assert.deepEqual(listed(), ['DB.fetch', 'Other.query'], 'the grammar holds the functions of every window');
+        assert.equal(first.prompts.length, 1, 'functions the grammar holds offer no reload');
+        assert.equal(second.prompts.length, 1, 'each window is offered a reload once for its new function');
         const before = fs.statSync(grammar).mtimeMs;
-        await highlighting.sync(['DB.fetch']);
+        await first.highlighting.sync(['DB.fetch']);
         assert.equal(fs.statSync(grammar).mtimeMs, before, 'an unchanged list leaves the grammar alone');
     });
 }
 
-async function turnsTheHighlightingOffAndOn(): Promise<void> {
-    const globalState = new MemoryMemento();
-    globalState.values.set('qbxLua.sqlFunctions', { 'file:///other': ['Other.query'] });
-    await shippedGrammars(globalState, async (folder, context) => {
-        let enabled = false;
-        const highlighting = new SqlHighlighting(context, vscode.window.createOutputChannel('qbx-sql-test'), () => enabled);
+async function leavesTheGrammarOfADevelopmentHostAlone(): Promise<void> {
+    await shippedGrammars(async (folder, context) => {
         const read = (relative: string) => fs.readFileSync(path.join(folder, relative), 'utf8');
-        await highlighting.sync(['DB.fetch']);
+        for (const mode of [vscode.ExtensionMode.Development, vscode.ExtensionMode.Test]) {
+            const { highlighting: development, prompts } = highlighting(context(mode), () => false);
+            await development.sync(['DB.fetch']);
+            assert.equal(read(SQL_GRAMMAR), grammarText(sqlGrammar()));
+            assert.equal(read(SQL_FUNCTIONS_GRAMMAR), grammarText(sqlFunctionsGrammar([])));
+            assert.deepEqual(prompts, []);
+        }
+    });
+}
+
+async function turnsTheHighlightingOffAndOn(): Promise<void> {
+    await shippedGrammars(async (folder, context) => {
+        let enabled = true;
+        const { highlighting: sql, prompts } = highlighting(context(vscode.ExtensionMode.Production), () => enabled);
+        const read = (relative: string) => fs.readFileSync(path.join(folder, relative), 'utf8');
+        await sql.sync(['DB.fetch']);
+        enabled = false;
+        await sql.sync();
         assert.equal(read(SQL_GRAMMAR), grammarText(disabledSqlGrammar()), 'off empties the grammar of database calls');
-        assert.equal(read(SQL_FUNCTIONS_GRAMMAR), grammarText(sqlFunctionsGrammar([])), 'off empties the grammar of query functions');
+        assert.equal(read(SQL_FUNCTIONS_GRAMMAR), grammarText(sqlFunctionsGrammar(['DB.fetch'], false)), 'off keeps the functions without highlighting them');
         assert.deepEqual(await sqlParts("MySQL.query.await('SELECT 1')\nDB.fetch('SELECT 2')", [], { [SQL_GRAMMAR]: read(SQL_GRAMMAR) }), ['', ''], 'off highlights nothing');
         enabled = true;
-        await highlighting.sync();
+        await sql.sync();
         assert.equal(read(SQL_GRAMMAR), grammarText(sqlGrammar()), 'on writes the grammar of database calls back');
-        assert.deepEqual((JSON.parse(read(SQL_FUNCTIONS_GRAMMAR)) as { functions: string[] }).functions, ['DB.fetch', 'Other.query'], 'on lists the functions the workspaces found while it was off');
+        assert.equal(read(SQL_FUNCTIONS_GRAMMAR), grammarText(sqlFunctionsGrammar(['DB.fetch'])), 'on highlights the functions found before');
+        assert.equal(prompts.length, 3, 'one reload for the new function, one for off and one for on');
     });
 }
 
@@ -201,8 +214,9 @@ const tests: Test[] = [
     ['database calls highlight their query', highlightsDatabaseCalls],
     ['---@language sql highlights the strings on the next line', highlightsMarkedStrings],
     ['calls of functions that take sql highlight their query', highlightsCallsOfQueryFunctions],
-    ['the grammar of query functions holds every workspace', writesTheGrammarOfQueryFunctions],
-    ['qbxLua.sqlHighlighting.enable empties the grammars and writes them back', turnsTheHighlightingOffAndOn],
+    ['the grammar of query functions holds every workspace without flipping between windows', writesTheGrammarOfQueryFunctions],
+    ['an extension under development leaves its grammars alone', leavesTheGrammarOfADevelopmentHostAlone],
+    ['qbxLua.sqlHighlighting.enable turns the grammars off and back on', turnsTheHighlightingOffAndOn],
     ['the extension ships the grammar the code writes', shipsTheGrammarTheCodeWrites],
 ];
 

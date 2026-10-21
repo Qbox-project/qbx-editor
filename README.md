@@ -131,7 +131,9 @@ DB.fetch('SELECT * FROM players WHERE citizenid = ?', { citizenid })
 
 `sql` is a `string` to the type checks. VS Code reads grammars when a window
 starts, so after a new query function appears, a notification offers to reload
-the window. Calls are matched by the name they are written with: `DB.fetch`,
+the window. Every window shares the grammar, so a function found in one
+workspace is highlighted in the others too, until the extension updates. An
+extension run from source keeps its checked-in grammars. Calls are matched by the name they are written with: `DB.fetch`,
 `DB:query` for a function defined with `:`, or `exports.mydb:scalar` for an
 export.
 

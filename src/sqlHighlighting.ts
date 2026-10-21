@@ -5,7 +5,6 @@ import * as vscode from 'vscode';
 export const SQL_GRAMMAR = 'syntaxes/sql.injection.json';
 /** The grammar that highlights SQL in calls of the workspace's own query functions. VS Code reads it when a window starts. */
 export const SQL_FUNCTIONS_GRAMMAR = 'syntaxes/sql-functions.injection.json';
-const STATE_KEY = 'qbxLua.sqlFunctions';
 const INJECTION_SELECTOR = 'L:source.lua -comment -string -meta.embedded.block.sql';
 
 const QUERY_METHODS = ['query', 'single', 'scalar', 'insert', 'update', 'prepare', 'rawExecute', 'execute'];
@@ -122,9 +121,9 @@ export function sqlCallPattern(functions: readonly string[]): string | undefined
     return alternatives.length > 0 ? String.raw`(${alternatives.join('|')})\s*(\()` : undefined;
 }
 
-/** The grammar that highlights the first argument of calls of `functions` as SQL, like the built-in database calls. */
-export function sqlFunctionsGrammar(functions: readonly string[]): Record<string, unknown> {
-    const begin = sqlCallPattern(functions);
+/** The grammar that highlights the first argument of calls of `functions` as SQL, like the built-in database calls, unless it is off. */
+export function sqlFunctionsGrammar(functions: readonly string[], enabled = true): Record<string, unknown> {
+    const begin = enabled ? sqlCallPattern(functions) : undefined;
     return {
         scopeName: 'lua.sql-functions.injection',
         injectionSelector: INJECTION_SELECTOR,
@@ -147,9 +146,10 @@ export function grammarText(grammar: Record<string, unknown>): string {
 
 /**
  * Keeps the SQL grammars in line with `qbxLua.sqlHighlighting.enable` and with the query functions
- * the language server finds. Each workspace keeps its own list of functions, and the grammar holds
- * them all, since every window reads the same file. VS Code only reads a grammar when a window
- * starts, so a change takes a reload.
+ * the language server finds. Every window and profile reads the same file, so the functions of each
+ * workspace are added to it and stay until the extension updates. VS Code only reads a grammar when
+ * a window starts, so a change takes a reload. The grammars of an extension under development are
+ * the checked-in files, which are left as they are.
  */
 export class SqlHighlighting {
     constructor(
@@ -158,26 +158,19 @@ export class SqlHighlighting {
         readonly enabled: () => boolean = () => vscode.workspace.getConfiguration('qbxLua').get<boolean>('sqlHighlighting.enable', true),
     ) {}
 
-    /** Writes the grammars the setting asks for, with `functions` as the query functions of this workspace once the server lists them. */
-    async sync(functions?: readonly string[]): Promise<void> {
-        const stored = { ...this.context.globalState.get<Record<string, string[]>>(STATE_KEY, {}) };
-        const workspace = vscode.workspace.workspaceFile?.toString() ?? vscode.workspace.workspaceFolders?.[0]?.uri.toString();
-        if (functions && workspace) {
-            stored[workspace] = [...functions];
-            await this.context.globalState.update(STATE_KEY, stored);
+    /** Writes the grammars the setting asks for, adding `functions` to the query functions the grammar holds. */
+    async sync(functions: readonly string[] = []): Promise<void> {
+        if (this.context.extensionMode !== vscode.ExtensionMode.Production) {
+            return;
         }
         const enabled = this.enabled();
         const switched = await this.write(SQL_GRAMMAR, grammarText(enabled ? sqlGrammar() : disabledSqlGrammar()));
-        const file = this.context.asAbsolutePath(SQL_FUNCTIONS_GRAMMAR);
-        const current = await grammarFunctions(file);
-        const all = enabled ? [...new Set(Object.values(stored).flat())].sort() : [];
-        const listed = current.length === all.length && current.every((name, index) => name === all[index]);
-        const relisted = !listed && (await this.write(SQL_FUNCTIONS_GRAMMAR, grammarText(sqlFunctionsGrammar(all))));
-        // A function that is gone stays highlighted until the next start, which does no harm.
-        const added = all.filter((name) => !current.includes(name));
+        const current = await grammarFunctions(this.context.asAbsolutePath(SQL_FUNCTIONS_GRAMMAR));
+        const added = [...new Set(functions)].filter((name) => !current.includes(name));
+        const relisted = await this.write(SQL_FUNCTIONS_GRAMMAR, grammarText(sqlFunctionsGrammar([...current, ...added].sort(), enabled)));
         if (switched) {
             this.offerReload(enabled ? 'Qbox Lua highlights SQL once the window reloads.' : 'Qbox Lua stops highlighting SQL once the window reloads.');
-        } else if (relisted && added.length > 0) {
+        } else if (relisted && enabled && added.length > 0) {
             const names = added.length > 3 ? `${added.slice(0, 3).join(', ')} and ${added.length - 3} more` : added.join(', ');
             this.offerReload(`Qbox Lua highlights SQL in calls of ${names} once the window reloads.`);
         }
