@@ -21,6 +21,9 @@ async function withServer(body: (server: dgram.Socket, port: number) => Promise<
     }
 }
 
+// A stalled extension host runs the expired timer before the reply that is already waiting.
+const REPLY_MS = 2000;
+
 function errorCode(code: string): (error: unknown) => boolean {
     return (error) => error instanceof RconError && error.code === code;
 }
@@ -41,7 +44,7 @@ export async function runRconTests(): Promise<void> {
             received = packet;
             server.send(printPacket('Started resource qbx_core\n'), peer.port, peer.address);
         });
-        const result = await sendRconCommand({ host: '127.0.0.1', port, password: 'secret"with\\quotes', command: resourceCommand('start', 'qbx_core'), timeoutMs: 150 });
+        const result = await sendRconCommand({ host: '127.0.0.1', port, password: 'secret"with\\quotes', command: resourceCommand('start', 'qbx_core'), timeoutMs: REPLY_MS });
         assert.equal(result, 'Started resource qbx_core\n');
         assert.deepEqual(received, Buffer.concat([Buffer.from([0xff, 0xff, 0xff, 0xff]), Buffer.from('rcon secret"with\\quotes start qbx_core')]));
     });
@@ -55,7 +58,7 @@ export async function runRconTests(): Promise<void> {
                 server.send(printPacket(Buffer.from([0x66, 0xc3])), peer.port, peer.address);
                 setTimeout(() => server.send(printPacket(Buffer.from([0xa9, 0x65])), peer.port, peer.address), 25);
             });
-            assert.equal(await sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: 180 }), 'fée');
+            assert.equal(await sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: REPLY_MS }), 'fée');
         } finally {
             intruder.close();
         }
@@ -64,7 +67,7 @@ export async function runRconTests(): Promise<void> {
     for (const reply of ['Invalid password.\n', 'The server must set rcon_password to be able to use this command.\n']) {
         await withServer(async (server, port) => {
             server.on('message', (_packet, peer) => server.send(printPacket(reply), peer.port, peer.address));
-            await assert.rejects(sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: 200 }), errorCode('authentication'));
+            await assert.rejects(sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: REPLY_MS }), errorCode('authentication'));
         });
     }
 
@@ -77,7 +80,7 @@ export async function runRconTests(): Promise<void> {
 
     await withServer(async (server, port) => {
         server.on('message', (_packet, peer) => server.send(printPacket(''), peer.port, peer.address));
-        assert.equal(await sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: 100 }), '', 'empty print responses are still replies');
+        assert.equal(await sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: REPLY_MS }), '', 'empty print responses are still replies');
     });
 
     await withServer(async (server, port) => {
@@ -98,11 +101,11 @@ export async function runRconTests(): Promise<void> {
     await withServer(async (server, port) => {
         // Windows resolves localhost to ::1 first, where a default 0.0.0.0 endpoint is not listening.
         server.on('message', (_packet, peer) => server.send(printPacket('IPv4 preferred'), peer.port, peer.address));
-        assert.equal(await sendRconCommand({ host: 'localhost', port, password: 'secret', command: 'echo test', timeoutMs: 1000 }), 'IPv4 preferred');
+        assert.equal(await sendRconCommand({ host: 'localhost', port, password: 'secret', command: 'echo test', timeoutMs: REPLY_MS }), 'IPv4 preferred');
     });
 
     await withServer(async (server, port) => {
         server.on('message', (_packet, peer) => server.send(printPacket('IPv6 works'), peer.port, peer.address));
-        assert.equal(await sendRconCommand({ host: '[::1]', port, password: 'secret', command: 'echo test', timeoutMs: 150 }), 'IPv6 works');
+        assert.equal(await sendRconCommand({ host: '[::1]', port, password: 'secret', command: 'echo test', timeoutMs: REPLY_MS }), 'IPv6 works');
     }, '::1');
 }
