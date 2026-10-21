@@ -116,7 +116,17 @@ export function sqlGrammar(): Record<string, unknown> {
                 },
                 end: '(?<=.)$',
                 applyEndPatternLast: 1,
-                patterns: [{ include: '#sql-strings' }, { include: 'source.lua' }],
+                patterns: [
+                    { include: '#sql-strings' },
+                    {
+                        comment: "A line comment that leaves the newline, which the Lua grammar's takes, so the end still follows it.",
+                        begin: String.raw`--(?!\[=*\[)`,
+                        beginCaptures: { 0: { name: 'punctuation.definition.comment.lua' } },
+                        end: String.raw`(?=\n)`,
+                        name: 'comment.line.double-dash.lua',
+                    },
+                    { include: 'source.lua' },
+                ],
             },
             call: {
                 comment: 'The first argument of an oxmysql, mysql-async or ghmattimysql call that takes a query.',
