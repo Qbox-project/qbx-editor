@@ -23,7 +23,7 @@ function sqlString(quote: string, kind: string, start = ''): Record<string, unkn
         end: String.raw`${quote}|(?=\n)`,
         endCaptures: { 0: { name: `string.quoted.${kind}.lua punctuation.definition.string.end.lua` } },
         contentName: 'meta.embedded.block.sql',
-        patterns: [{ include: 'source.lua#escaped_char' }, { include: 'source.sql' }],
+        patterns: [{ include: `#sql-in-${kind}` }],
     };
 }
 
@@ -33,8 +33,51 @@ const LONG_SQL_STRING = {
     end: String.raw`\]\1\]`,
     endCaptures: { 0: { name: 'string.quoted.other.multiline.lua punctuation.definition.string.end.lua' } },
     contentName: 'meta.embedded.block.sql',
-    patterns: [{ include: 'source.sql' }],
+    patterns: [{ include: '#sql-in-multiline' }],
 };
+
+const SQL_QUOTES = [["'", 'single'], ['"', 'double'], ['`', 'other.backtick']];
+
+/**
+ * VS Code's SQL grammar for the text of a Lua string that ends before `stop`, with the comments,
+ * strings and quoted names that it would run on past the end of the Lua string ended there. A long
+ * string's level is not known here, so any closing long brackets end them.
+ */
+function sqlContent(stop: string, luaQuote?: string): Record<string, unknown> {
+    const escapes = luaQuote ? [{ include: 'source.lua#escaped_char' }] : [];
+    const until = (close: string) => String.raw`${close}|(?=${stop})`;
+    return {
+        patterns: [
+            ...escapes,
+            { match: String.raw`^[ \t]+(?=--)`, name: 'punctuation.whitespace.comment.leading.sql' },
+            {
+                begin: '--',
+                beginCaptures: { 0: { name: 'punctuation.definition.comment.sql' } },
+                end: String.raw`(?=${stop}|$)`,
+                name: 'comment.line.double-dash.sql',
+                patterns: escapes,
+            },
+            {
+                begin: String.raw`/\*`,
+                beginCaptures: { 0: { name: 'punctuation.definition.comment.sql' } },
+                end: until(String.raw`\*/`),
+                endCaptures: { 0: { name: 'punctuation.definition.comment.sql' } },
+                name: 'comment.block',
+                patterns: escapes,
+            },
+            ...SQL_QUOTES.filter(([quote]) => quote !== luaQuote).map(([quote, kind]) => ({
+                begin: quote === "'" ? String.raw`(?:(?<![a-zA-Z0-9_])N)?'` : quote,
+                beginCaptures: { 0: { name: 'punctuation.definition.string.begin.sql' } },
+                end: until(quote),
+                endCaptures: { 0: { name: 'punctuation.definition.string.end.sql' } },
+                name: `string.quoted.${kind}.sql`,
+                patterns: luaQuote ? escapes : [{ include: 'source.sql#string_escape' }],
+            })),
+            { begin: String.raw`\[`, end: until(String.raw`\]`), name: 'text.bracketed', patterns: escapes },
+            { include: 'source.sql' },
+        ],
+    };
+}
 
 /**
  * The grammar that highlights SQL with VS Code's own SQL grammar: in the query argument of oxmysql,
@@ -90,6 +133,9 @@ export function sqlGrammar(): Record<string, unknown> {
                 patterns: [sqlString("'", 'single', statement), sqlString('"', 'double', statement), LONG_SQL_STRING, { include: 'source.lua' }],
             },
             'sql-strings': { patterns: [sqlString("'", 'single'), sqlString('"', 'double'), LONG_SQL_STRING] },
+            'sql-in-single': sqlContent("'|$", "'"),
+            'sql-in-double': sqlContent('"|$', '"'),
+            'sql-in-multiline': sqlContent(String.raw`\]=*\]`),
         },
     };
 }

@@ -99,6 +99,37 @@ async function highlightsDatabaseCalls(): Promise<void> {
     ]);
 }
 
+async function endsSqlWithTheLuaString(): Promise<void> {
+    const parts = await sqlParts([
+        'local rows = MySQL.query.await([[SELECT * FROM t -- every row]])',
+        "print('one')",
+        "MySQL.query('SELECT 1 -- note /* open', {}, function() end)",
+        "print('two')",
+        'MySQL.update("UPDATE vehicles SET `" .. column .. "` = ? WHERE plate = ?", { plate })',
+        "MySQL.query(\"SELECT * FROM users WHERE identifier = '\" .. id .. \"'\", {})",
+        "MySQL.query('SELECT \"it\\'s\" FROM t [x', {})",
+        'MySQL.query.await([==[',
+        "    SELECT 'O\\'Brien' FROM t /* a",
+        '    comment */ WHERE a = 1',
+        ']==], {})',
+        "print('three')",
+    ].join('\n'));
+    assert.deepEqual(parts, [
+        'SELECT * FROM t -- every row',
+        '',
+        'SELECT 1 -- note /* open',
+        '',
+        'UPDATE vehicles SET `` = ? WHERE plate = ?',
+        "SELECT * FROM users WHERE identifier = ''",
+        'SELECT "it\\\'s" FROM t [x',
+        '',
+        "SELECT 'O\\'Brien' FROM t /* a",
+        'comment */ WHERE a = 1',
+        '',
+        '',
+    ]);
+}
+
 async function highlightsMarkedStrings(): Promise<void> {
     const parts = await sqlParts([
         '---@language sql',
@@ -212,6 +243,7 @@ async function shipsTheGrammarTheCodeWrites(): Promise<void> {
 
 const tests: Test[] = [
     ['database calls highlight their query', highlightsDatabaseCalls],
+    ['SQL comments, strings and quoted names end with the Lua string', endsSqlWithTheLuaString],
     ['---@language sql highlights the strings on the next line', highlightsMarkedStrings],
     ['calls of functions that take sql highlight their query', highlightsCallsOfQueryFunctions],
     ['the grammar of query functions holds every workspace without flipping between windows', writesTheGrammarOfQueryFunctions],
