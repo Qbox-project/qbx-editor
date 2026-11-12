@@ -8,7 +8,7 @@ export function getRuntimeLogHtml(scriptUri: string, nonce: string): string {
     const safeNonce = escapeAttribute(nonce);
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${safeNonce}'; style-src 'nonce-${safeNonce}'; img-src 'none'; connect-src 'none'; font-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${safeNonce}'; style-src 'nonce-${safeNonce}'; img-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none';">
 <title>Runtime Log</title><style nonce="${safeNonce}">
 ${browserStyles}
 .log-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:5px 0 10px; }
@@ -25,6 +25,10 @@ ${browserStyles}
 .log-lines { font:12px/1.65 var(--vscode-editor-font-family,monospace); tab-size:4; }
 .log-line { white-space:pre-wrap; overflow-wrap:anywhere; padding:2px 7px; border-left:2px solid transparent; min-height:1.65em; }
 .log-line:hover { background:var(--vscode-list-hoverBackground,#2b2d2e); border-left-color:var(--vscode-panel-border,#444); }
+.log-line.error { color:var(--vscode-errorForeground,#f48771); border-left-color:var(--vscode-editorError-foreground,#f14c4c); }
+.log-line.warning { color:var(--vscode-editorWarning-foreground,#cca700); border-left-color:var(--vscode-editorWarning-foreground,#cca700); }
+.severity-filter { display:flex; align-items:center; gap:5px; font-size:12px; white-space:nowrap; cursor:pointer; }
+.severity-filter input { accent-color:var(--vscode-focusBorder,#007fd4); }
 .log-source { display:inline; padding:0; border:0; border-radius:0; color:var(--vscode-textLink-foreground,#4daafc); background:transparent; font:inherit; white-space:pre-wrap; overflow-wrap:anywhere; text-align:left; vertical-align:baseline; }
 .log-source:hover:not(:disabled) { background:transparent; color:var(--vscode-textLink-activeForeground,#73c2ff); text-decoration:underline; }
 .empty button { margin-top:10px; }
@@ -33,11 +37,11 @@ ${browserStyles}
 <header><div class="eyebrow">Qbox Lua / Runtime</div><div class="log-heading"><h1>Runtime log</h1><span id="read-state" class="read-state">No file selected</span></div>
 <p id="log-path" class="log-path">Choose a local log file to follow its output.</p>
 <div class="log-actions"><button id="choose" class="primary">Choose log file…</button><button id="pause" aria-pressed="false" disabled>Pause</button><button id="clear" disabled>Clear view</button></div>
-<div class="log-search"><input id="search" type="search" maxlength="256" aria-label="Filter retained log lines" placeholder="Filter text or resource names…"><label class="follow"><input id="autoscroll" type="checkbox" checked>Autoscroll</label></div>
+<div class="log-search"><input id="search" type="search" maxlength="256" aria-label="Filter retained log lines" placeholder="Filter text or resource names…"><label class="severity-filter"><input id="problems" type="checkbox">Errors and warnings only</label><label class="follow"><input id="autoscroll" type="checkbox" checked>Autoscroll</label></div>
 <p id="log-status" class="log-status" role="status" aria-live="polite">Select a log file to begin.</p></header>
 <div class="log-toolbar"><span id="line-count">0 retained lines</span><span>Up to 300 matching lines shown</span></div>
 <main id="viewport" class="log-viewport" aria-label="Log output" tabindex="0">
-<div id="empty" class="empty"><h2>Follow a FiveM log</h2><p>Select an existing local log file. Source locations in recognized stack traces can open directly in your editor.</p><button id="empty-choose">Choose log file…</button></div>
+<div id="empty" class="empty"><h2>Follow a FiveM log</h2><p>Select an existing local log file. It is followed again the next time you open this tab. Source locations in recognized stack traces can open directly in your editor.</p><button id="empty-choose">Choose log file…</button></div>
 <div id="no-matches" class="empty" hidden><h2>No matching lines</h2><p>Change your filter to search the retained log history.</p></div>
 <div id="lines" class="log-lines" aria-label="Matching log lines"></div>
 </main><div id="history-note" class="status-bar">Search covers the log history retained in this tab.</div>

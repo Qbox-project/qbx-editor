@@ -4,7 +4,7 @@ export interface RuntimeLogView {
     status: string;
     paused: boolean;
     hasFile: boolean;
-    lines: { id: string; text: string; links: LogSourceLink[] }[];
+    lines: { id: string; text: string; links: LogSourceLink[]; severity?: 'error' | 'warning' }[];
 }
 export type RuntimeLogMessage = { type: 'state'; data: RuntimeLogView };
 

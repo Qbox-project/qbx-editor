@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import { RuntimeLogTail, type LogTailUpdate } from './runtimeLogTail';
-import { parseLogSources } from './runtimeLogParser';
+import { logSeverity, parseLogSources, type LogSeverity } from './runtimeLogParser';
 import { openLogSource, validLogSource, type LogSource } from './runtimeLogSources';
 import { getRuntimeLogHtml } from './runtimeLogHtml';
 import { getWorkspaceHealthHtml } from './workspaceHealthHtml';
@@ -10,18 +10,26 @@ import { openResourceSource } from './resourceNavigation';
 import type { ResourceIndex } from './resources';
 import type { RuntimeLogView } from './runtimeToolsTypes';
 
+const LOG_PATH_KEY = 'qbxLua.runtimeLog.path';
+
 function panel(extension: vscode.Uri, type: string, title: string, script: string,
     html: (script: string, nonce: string) => string): vscode.WebviewPanel {
-    const result = vscode.window.createWebviewPanel(type, title, vscode.ViewColumn.Beside, {
-        enableScripts: true, enableCommandUris: false, retainContextWhenHidden: false,
-        localResourceRoots: [vscode.Uri.joinPath(extension, 'dist')],
-    });
-    result.webview.html = html(result.webview.asWebviewUri(vscode.Uri.joinPath(extension, 'dist', script)).toString(), randomBytes(16).toString('hex'));
+    const result = vscode.window.createWebviewPanel(type, title, vscode.ViewColumn.Beside, { retainContextWhenHidden: false });
+    adopt(result, extension, script, html);
     return result;
+}
+
+/** Gives a tab, new or restored by VS Code after a reload, the page and the options of this extension. */
+function adopt(target: vscode.WebviewPanel, extension: vscode.Uri, script: string, html: (script: string, nonce: string) => string): void {
+    target.webview.options = { enableScripts: true, enableCommandUris: false, localResourceRoots: [vscode.Uri.joinPath(extension, 'dist')] };
+    target.webview.html = html(target.webview.asWebviewUri(vscode.Uri.joinPath(extension, 'dist', script)).toString(), randomBytes(16).toString('hex'));
 }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
-/** Follows only the explicitly selected file; lifetime and in-memory history belong to the tab. */
+/**
+ * Follows only the explicitly selected file; the in-memory history belongs to the tab. The path of
+ * that file is remembered for the workspace, so opening the log again follows it without asking.
+ */
 export class RuntimeLogController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private tail: RuntimeLogTail | undefined;
@@ -31,11 +39,13 @@ export class RuntimeLogController implements vscode.Disposable {
     private opening = false;
     private sourceCancellation: vscode.CancellationTokenSource | undefined;
     private readonly links = new Map<string, LogSource>();
+    /** What each retained line parses to, so an update reads only the lines that are new. */
+    private parsed = new Map<string, { text: string; sources: ReturnType<typeof parseLogSources>; severity: LogSeverity | undefined }>();
     private readonly indexSubscription: vscode.Disposable;
     private update: LogTailUpdate = { lines: [], paused: false, status: 'Choose an FXServer or txAdmin log file accessible on this machine.' };
     private path = '';
 
-    constructor(private readonly extensionUri: vscode.Uri, private readonly index: ResourceIndex) {
+    constructor(private readonly extensionUri: vscode.Uri, private readonly index: ResourceIndex, private readonly memento?: vscode.Memento) {
         this.indexSubscription = index.onDidChange(() => { this.sourceCancellation?.cancel(); this.post(); });
         void index.ready.then(() => this.post()).catch(() => {});
     }
@@ -43,7 +53,37 @@ export class RuntimeLogController implements vscode.Disposable {
     async show(value?: unknown): Promise<void> {
         if (this.disposed || (value !== undefined && (!(value instanceof vscode.Uri) || value.scheme !== 'file' || value.query || value.fragment))) { return; }
         if (!this.panel) {
-            const created = panel(this.extensionUri, 'qbxLua.runtimeLog', 'FiveM Runtime Log', 'runtimeLogWebview.js', getRuntimeLogHtml);
+            this.attach(panel(this.extensionUri, 'qbxLua.runtimeLog', 'FiveM Runtime Log', 'runtimeLogWebview.js', getRuntimeLogHtml));
+        } else { this.panel.reveal(this.panel.viewColumn); }
+        this.post();
+        if (value instanceof vscode.Uri) { await this.select(value); }
+        else if (!this.path) { await this.resume(); }
+    }
+
+    /** Takes over a tab that VS Code restored after a reload and follows the remembered file again. */
+    async restore(restored: vscode.WebviewPanel): Promise<void> {
+        if (this.disposed || this.panel) { restored.dispose(); return; }
+        adopt(restored, this.extensionUri, 'runtimeLogWebview.js', getRuntimeLogHtml);
+        this.attach(restored);
+        this.post();
+        const remembered = this.remembered();
+        if (remembered) { await this.select(remembered); }
+    }
+
+    /** The file followed last in this workspace, else one the user chooses. */
+    private async resume(): Promise<void> {
+        const remembered = this.remembered();
+        if (remembered) { await this.select(remembered); }
+        if (!this.tail) { await this.choose(); }
+    }
+
+    private remembered(): vscode.Uri | undefined {
+        const saved = this.memento?.get<unknown>(LOG_PATH_KEY);
+        return typeof saved === 'string' && saved.length > 0 && saved.length <= 4096 ? vscode.Uri.file(saved) : undefined;
+    }
+
+    private attach(created: vscode.WebviewPanel): void {
+        {
             this.panel = created;
             const subscriptions = [
                 created.webview.onDidReceiveMessage((message: unknown) => { void this.handle(message).catch((error) => this.report(error)); }),
@@ -55,10 +95,7 @@ export class RuntimeLogController implements vscode.Disposable {
                     }
                 }),
             ];
-        } else { this.panel.reveal(this.panel.viewColumn); }
-        this.post();
-        if (value instanceof vscode.Uri) { await this.select(value); }
-        else if (!this.path) { await this.choose(); }
+        }
     }
 
     private async select(uri: vscode.Uri): Promise<void> {
@@ -73,7 +110,10 @@ export class RuntimeLogController implements vscode.Disposable {
             this.update = update; this.post();
         });
         this.tail = tail;
-        try { await tail.start(); }
+        try {
+            await tail.start();
+            if (!this.disposed && generation === this.generation) { void this.memento?.update(LOG_PATH_KEY, this.path); }
+        }
         catch (error) {
             if (this.disposed || generation !== this.generation) { return; }
             tail.dispose(); this.tail = undefined;
@@ -124,21 +164,28 @@ export class RuntimeLogController implements vscode.Disposable {
         if (this.disposed || !this.panel) { return; }
         this.links.clear();
         const resourceNames = new Set(this.index.entries.map((resource) => resource.name.toLowerCase()));
+        const parsed = new Map<string, { text: string; sources: ReturnType<typeof parseLogSources>; severity: LogSeverity | undefined }>();
         const data: RuntimeLogView = { path: this.path, status: this.update.status, paused: this.update.paused, hasFile: !!this.tail,
-            lines: this.update.lines.map((line) => ({ ...line,
-                links: parseLogSources(line.text).flatMap((source, index) => {
-                    if (!validLogSource(source) || !resourceNames.has(source.resource.toLowerCase())) { return []; }
-                    const id = `${this.generation}:${line.id}:${index}`;
-                    this.links.set(id, source);
-                    return [{ start: source.start, end: source.end, id }];
-                }),
-            })) };
+            lines: this.update.lines.map((line) => {
+                const known = this.parsed.get(line.id);
+                const entry = known?.text === line.text ? known : { text: line.text, sources: parseLogSources(line.text), severity: logSeverity(line.text) };
+                parsed.set(line.id, entry);
+                return { ...line, severity: entry.severity,
+                    links: entry.sources.flatMap((source, index) => {
+                        if (!validLogSource(source) || !resourceNames.has(source.resource.toLowerCase())) { return []; }
+                        const id = `${this.generation}:${line.id}:${index}`;
+                        this.links.set(id, source);
+                        return [{ start: source.start, end: source.end, id }];
+                    }),
+                };
+            }) };
+        this.parsed = parsed;
         void this.panel.webview.postMessage({ type: 'state', data });
     }
     private report(error: unknown): void {
         if (!this.disposed && this.panel) { void vscode.window.showErrorMessage(`FiveM Runtime Log: ${error instanceof Error ? error.message : String(error)}`); }
     }
-    private reset(): void { ++this.generation; this.tail?.dispose(); this.tail = undefined; this.links.clear(); this.sourceCancellation?.cancel(); }
+    private reset(): void { ++this.generation; this.tail?.dispose(); this.tail = undefined; this.links.clear(); this.parsed.clear(); this.sourceCancellation?.cancel(); }
     dispose(): void { this.disposed = true; this.reset(); this.panel?.dispose(); this.indexSubscription.dispose(); }
 }
 
@@ -151,7 +198,21 @@ export class WorkspaceHealthController implements vscode.Disposable {
     async show(): Promise<void> {
         if (this.disposed) { return; }
         if (!this.panel) {
-            const created = panel(this.extensionUri, 'qbxLua.workspaceHealth', 'FiveM Workspace Health', 'workspaceHealthWebview.js', getWorkspaceHealthHtml);
+            this.attach(panel(this.extensionUri, 'qbxLua.workspaceHealth', 'FiveM Workspace Health', 'workspaceHealthWebview.js', getWorkspaceHealthHtml));
+        } else { this.panel.reveal(this.panel.viewColumn); }
+        await this.session?.refresh();
+    }
+
+    /** Takes over a tab that VS Code restored after a reload. */
+    async restore(restored: vscode.WebviewPanel): Promise<void> {
+        if (this.disposed || this.panel) { restored.dispose(); return; }
+        adopt(restored, this.extensionUri, 'workspaceHealthWebview.js', getWorkspaceHealthHtml);
+        this.attach(restored);
+        await this.session?.refresh();
+    }
+
+    private attach(created: vscode.WebviewPanel): void {
+        {
             this.panel = created;
             const session = new WorkspaceHealthSession(this.request, (message) => {
                 if (this.panel === created) { void created.webview.postMessage(message); }
@@ -168,8 +229,7 @@ export class WorkspaceHealthController implements vscode.Disposable {
                     if (this.panel === created) { this.panel = undefined; this.session = undefined; }
                 }),
             ];
-        } else { this.panel.reveal(this.panel.viewColumn); }
-        await this.session?.refresh();
+        }
     }
     dispose(): void { this.disposed = true; this.session?.dispose(); this.panel?.dispose(); }
 }

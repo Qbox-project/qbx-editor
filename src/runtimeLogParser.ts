@@ -34,6 +34,21 @@ export function cleanLogText(text: string): string {
     return out.join('');
 }
 
+export type LogSeverity = 'error' | 'warning';
+
+/**
+ * How serious a line of FXServer or txAdmin output is, from the words the server itself prints:
+ * `SCRIPT ERROR`, `Error loading script`, a resource that could not start, `Warning:`. Stack frames
+ * (`> name (@resource/file.lua:12)`) belong to the error above them.
+ */
+export function logSeverity(text: string): LogSeverity | undefined {
+    const line = text.slice(0, 2048);
+    if (/SCRIPT ERROR|\bError (?:loading|parsing|running)\b|\b(?:Couldn't|Could not|Failed to) (?:start|load|find|parse|open|execute)\b|\b(?:fatal|error):|^\s*(?:\[[^\]]*\]\s*)?> .*\(@[^)]+\)|stack traceback:/i.test(line)) {
+        return 'error';
+    }
+    return /\bwarning\b|\bdeprecated\b|\bis not (?:a valid|permitted)\b/i.test(line) ? 'warning' : undefined;
+}
+
 /**
  * Cfx emits SCRIPT ERROR followed by Lua @resource/path.lua:line sources and stack frames.
  * https://github.com/citizenfx/fivem/blob/master/data/shared/citizen/scripting/lua/scheduler.lua

@@ -18,12 +18,13 @@ function node<K extends keyof HTMLElementTagNameMap>(tag: K, text: string): HTML
 }
 const saved = vscode.getState();
 const prior = typeof saved === 'object' && saved !== null && !Array.isArray(saved) ? saved as Record<string, unknown> : {};
-const state = { query: typeof prior.query === 'string' ? prior.query.slice(0, 256) : '', autoScroll: prior.autoScroll !== false };
+const state = { query: typeof prior.query === 'string' ? prior.query.slice(0, 256) : '', autoScroll: prior.autoScroll !== false, problems: prior.problems === true };
 const search = element<HTMLInputElement>('search');
 const autoscroll = element<HTMLInputElement>('autoscroll');
+const problems = element<HTMLInputElement>('problems');
 const viewport = element('viewport');
 const lines = element('lines');
-const rendered = new Map<string, { text: string; links: string; node: HTMLElement }>();
+const rendered = new Map<string, { text: string; links: string; severity: string | undefined; node: HTMLElement }>();
 let view: RuntimeLogView | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -31,9 +32,9 @@ function save(): void { vscode.setState({ ...state }); }
 function renderLine(line: RuntimeLogView['lines'][number]): HTMLElement {
     const fingerprint = JSON.stringify(line.links);
     const cached = rendered.get(line.id);
-    if (cached?.text === line.text && cached.links === fingerprint) { return cached.node; }
+    if (cached?.text === line.text && cached.links === fingerprint && cached.severity === line.severity) { return cached.node; }
     const container = node('div', '');
-    container.className = 'log-line';
+    container.className = line.severity === 'error' || line.severity === 'warning' ? `log-line ${line.severity}` : 'log-line';
     let cursor = 0;
     for (const link of [...line.links].sort((a, b) => a.start - b.start)) {
         if (!Number.isSafeInteger(link.start) || !Number.isSafeInteger(link.end) || link.start < cursor
@@ -48,7 +49,7 @@ function renderLine(line: RuntimeLogView['lines'][number]): HTMLElement {
         cursor = link.end;
     }
     container.append(document.createTextNode(line.text.slice(cursor)));
-    rendered.set(line.id, { text: line.text, links: fingerprint, node: container });
+    rendered.set(line.id, { text: line.text, links: fingerprint, severity: line.severity, node: container });
     return container;
 }
 
@@ -57,7 +58,7 @@ function renderLines(): void {
     const tokens = state.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const matching = view.lines.filter((line) => {
         const text = line.text.toLowerCase();
-        return tokens.every((token) => text.includes(token));
+        return (!state.problems || line.severity !== undefined) && tokens.every((token) => text.includes(token));
     });
     const visible = matching.slice(-300);
     const visibleIds = new Set(visible.map((line) => line.id));
@@ -100,6 +101,8 @@ window.addEventListener('message', (event: MessageEvent<RuntimeLogMessage>) => {
 
 search.value = state.query;
 autoscroll.checked = state.autoScroll;
+problems.checked = state.problems;
+problems.addEventListener('change', () => { state.problems = problems.checked; save(); renderLines(); });
 function filter(): void {
     if (timer) { clearTimeout(timer); timer = undefined; }
     state.query = search.value.slice(0, 256);
