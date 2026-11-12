@@ -42,12 +42,13 @@ Lua setup for non-FiveM projects, put the line in `.zed/settings.json` inside th
 server or resource folder instead.
 
 The server comes from `lsp.qbx-lua-ls.binary.path` when set, then `qbx-lua-ls` on
-`PATH`, and otherwise the latest
-[qbx-lua-ls release](https://github.com/Qbox-project/qbx-lua/releases) for
-Windows x64, Linux x64/ARM64 or macOS x64/ARM64 is downloaded automatically.
-Server releases are picked up on the next Zed start. To update the extension
-itself, pull this repository, click **Rebuild** on CfxLua in the extensions page
-and restart Zed; Zed can keep the old server stopped until it restarts.
+`PATH`, and otherwise the
+[qbx-lua-ls release](https://github.com/Qbox-project/qbx-lua/releases) with the
+version of the extension is downloaded for Windows x64, Linux x64/ARM64 or
+macOS x64/ARM64, so the two always match. Only where that release cannot be
+found is the latest one used. To update the extension and with it the server,
+pull this repository, click **Rebuild** on CfxLua in the extensions page and
+restart Zed; Zed can keep the old server stopped until it restarts.
 
 Everything else is optional. Zed leaves inlay hints and semantic highlighting
 off by default, and server options go in `initialization_options`:
@@ -58,7 +59,8 @@ off by default, and server options go in `initialization_options`:
     "qbx-lua-ls": {
       "initialization_options": {
         "library": [],
-        "diagnostics": { "enable": true, "workspace": true }
+        "diagnostics": { "enable": true, "workspace": true, "rules": {}, "strict": false },
+        "hover": { "verbosity": 1 }
       }
     }
   },

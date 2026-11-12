@@ -27,13 +27,19 @@ impl QbxLuaExtension {
             id,
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
-        let release = zed::latest_github_release(
-            REPO,
-            zed::GithubReleaseOptions {
-                require_assets: true,
-                pre_release: false,
-            },
-        )?;
+        // The server released together with this extension version, so the two always match; the
+        // newest release only where that one cannot be found.
+        let release =
+            zed::github_release_by_tag_name(REPO, concat!("v", env!("CARGO_PKG_VERSION")))
+                .or_else(|_| {
+                    zed::latest_github_release(
+                        REPO,
+                        zed::GithubReleaseOptions {
+                            require_assets: true,
+                            pre_release: false,
+                        },
+                    )
+                })?;
 
         let (os, arch) = zed::current_platform();
         let target = match (&os, &arch) {

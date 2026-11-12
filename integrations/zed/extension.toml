@@ -1,6 +1,6 @@
 id = "cfxlua"
 name = "CfxLua"
-description = "CfxLua support for FiveM and RedM resources, powered by the qbx-lua-ls language server: natives, diagnostics, completion, formatting and navigation."
+description = "CfxLua support for FiveM resources, powered by the qbx-lua-ls language server: natives, diagnostics, completion, formatting and navigation."
 version = "1.2.1"
 schema_version = 1
 authors = ["Qbox Project"]

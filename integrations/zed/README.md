@@ -1,6 +1,6 @@
 # CfxLua for Zed
 
-Adds the **CfxLua** language to Zed for FiveM and RedM resources and runs the
+Adds the **CfxLua** language to Zed for FiveM resources and runs the
 [qbx-lua-ls](https://github.com/Qbox-project/qbx-lua/tree/main/crates/qbx_lua_ls) language server for it.
 It does not need Zed's Lua extension or LuaLS.
 

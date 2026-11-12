@@ -7,9 +7,15 @@ required-root-patterns = ["fxmanifest.lua", "__resource.lua"]
 # Helix config becomes initializationOptions. Do not add a qbxLua wrapper.
 [language-server.qbx-lua-ls.config]
 library = [] # Add absolute folders, e.g. ["C:/server/resources"].
-diagnostics = { enable = true, workspace = true }
 inlayHints = { enable = true }
 semanticTokens = { enable = true }
+hover = { verbosity = 1 } # 0 shows the type alone, 5 the most.
+
+[language-server.qbx-lua-ls.config.diagnostics]
+enable = true
+workspace = true
+strict = false
+rules = {} # Rule levels, e.g. { "unused-local" = "warning" }.
 
 [[language]]
 name = "lua"

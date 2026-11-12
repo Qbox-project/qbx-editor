@@ -12,9 +12,15 @@ vim.lsp.config('qbx', {
     -- Initialization options are flat; do not wrap these in qbxLua.
     init_opts = {
         library = {}, -- Add absolute folders, e.g. { 'C:/server/resources' }.
-        diagnostics = { enable = true, workspace = true },
+        diagnostics = {
+            enable = true,
+            workspace = true,
+            rules = vim.empty_dict(), -- Rule levels, e.g. { ['unused-local'] = 'warning' }.
+            strict = false,
+        },
         inlayHints = { enable = true },
         semanticTokens = { enable = true },
+        hover = { verbosity = 1 }, -- 0 shows the type alone, 5 the most.
     },
 })
 vim.lsp.enable('qbx')
