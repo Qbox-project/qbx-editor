@@ -1188,7 +1188,7 @@
     "vscode:prepublish": "npm run build -- --production"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^11.0.0"
   },
   "devDependencies": {
     "@bis-toolkit/bcn": "1.0.2",
