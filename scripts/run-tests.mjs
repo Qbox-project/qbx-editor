@@ -31,7 +31,22 @@ if (only === 'unit') {
 }
 
 const workspace = resolve(process.env.QBX_TEST_WORKSPACE || join(root, '..', 'qbx-lua', 'crates', 'qbx_lua_ls', 'tests', 'fixtures', 'resources'));
-const executable = process.env.VSCODE_EXECUTABLE_PATH || await downloadAndUnzipVSCode(process.env.QBX_VSCODE_VERSION || undefined);
+// The update server sometimes takes longer than the 15 seconds the downloader allows, or does not answer at all.
+async function downloadVSCode(version) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await downloadAndUnzipVSCode({ version, timeout: 60000 });
+        } catch (error) {
+            if (attempt === 3) {
+                throw error;
+            }
+            console.error(`Downloading VS Code failed (${error instanceof Error ? error.message : error}); trying again.`);
+            await new Promise((done) => setTimeout(done, attempt * 10000));
+        }
+    }
+}
+
+const executable = process.env.VSCODE_EXECUTABLE_PATH || await downloadVSCode(process.env.QBX_VSCODE_VERSION || undefined);
 
 /**
  * The fixture workspace in Restricted Mode. `runTests` always passes `--disable-workspace-trust`,
