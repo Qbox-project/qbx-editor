@@ -34,6 +34,10 @@ const MEDIA: Record<string, { mime: string; kind: 'image' | 'audio' | 'video' }>
 };
 function displaySource(location: ResourceLocation): string { return `${vscode.workspace.asRelativePath(vscode.Uri.parse(location.uri), true)}:${location.range.start.line + 1}`; }
 export type AssetResourceIndex = Pick<ResourceIndex, 'ready' | 'onDidChange' | 'entries' | 'resolve'>;
+const ASSET_RESOURCE_KEY = 'qbxLua.assets.resource';
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+/** A one megapixel preview is at most 4 MiB of pixels, which PNG and base64 do not double. */
+const PNG_BASE64_LIMIT = 8 * 1024 * 1024;
 
 export class AssetController implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
@@ -56,7 +60,7 @@ export class AssetController implements vscode.Disposable {
     /** Fires when the visible browser has rendered the current resource snapshot. */
     readonly onDidLoad = this.loaded.event;
 
-    constructor(private readonly extensionUri: vscode.Uri, private readonly request: AssetRequest, private readonly index: AssetResourceIndex) {
+    constructor(private readonly extensionUri: vscode.Uri, private readonly request: AssetRequest, private readonly index: AssetResourceIndex, private readonly memento?: vscode.Memento) {
         this.subscription = index.onDidChange(() => {
             if (this.resource && !index.entries.some((entry) => entry.folder.toString() === this.resource!.folder.toString())) {
                 this.reset(); this.resource = undefined;
@@ -78,10 +82,21 @@ export class AssetController implements vscode.Disposable {
         } else if (this.panel) { this.panel.reveal(this.panel.viewColumn); }
         else { await this.choose(); }
     }
+    /** Takes over a tab that VS Code restored after a window reload, for the resource it showed. */
+    async restore(panel: vscode.WebviewPanel): Promise<void> {
+        await this.index.ready;
+        const saved = this.memento?.get<unknown>(ASSET_RESOURCE_KEY);
+        const resource = typeof saved === 'string' ? await this.index.resolve(vscode.Uri.parse(saved)) : undefined;
+        if (this.disposed || this.panel || !resource) { panel.dispose(); return; }
+        this.attach(panel);
+        await this.load(resource);
+    }
     private ensurePanel(): void {
         if (this.panel) { this.panel.reveal(this.panel.viewColumn); return; }
-        const panel = vscode.window.createWebviewPanel('qbxLua.assets', 'FiveM Resource Assets', vscode.ViewColumn.Beside,
-            { enableScripts: true, enableCommandUris: false, retainContextWhenHidden: false, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')] });
+        this.attach(vscode.window.createWebviewPanel('qbxLua.assets', 'FiveM Resource Assets', vscode.ViewColumn.Beside, { retainContextWhenHidden: false }));
+    }
+    private attach(panel: vscode.WebviewPanel): void {
+        panel.webview.options = { enableScripts: true, enableCommandUris: false, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')] };
         this.panel = panel;
         panel.webview.html = getAssetHtml(panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'assetWebview.js')).toString(), randomBytes(16).toString('hex'));
         const subscriptions = [panel.webview.onDidReceiveMessage((message: unknown) => {
@@ -106,6 +121,7 @@ export class AssetController implements vscode.Disposable {
     }
     private async load(resource: Resource): Promise<void> {
         this.reset(); this.resource = resource;
+        void this.memento?.update(ASSET_RESOURCE_KEY, resource.folder.toString());
         const generation = this.generation;
         this.post({ type: 'loading' });
         try {
@@ -198,7 +214,10 @@ export class AssetController implements vscode.Disposable {
                 const header = inspectResourceHeader(bytes);
                 data.notes.push(...header.notes);
                 if (header.systemBytes !== undefined) { data.metadata.push({ name: 'Resource pages', value: `${header.systemBytes.toLocaleString()} system + ${(header.graphicsBytes ?? 0).toLocaleString()} graphics bytes` }); }
-                data.notes.push('No 3D model, map geometry, animation or audio-bank decoder is provided.');
+                data.notes.push(['.ymap', '.ytyp'].includes(entry.extension) ? 'Open file shows entities, interiors and coordinates in the map viewer.'
+                    : ['.ydr', '.ydd', '.yft', '.ybn'].includes(entry.extension) ? 'Open file shows a 3D preview in the model viewer.'
+                        : entry.extension === '.ycd' ? 'Open file lists the clips of this animation dictionary.'
+                        : 'No decoder is provided for this format.');
             }
             if (this.current(generation) && this.detailGeneration === detailGeneration) { this.post({ type: 'detail', requestId, data }); }
         } catch (error) { if (this.current(generation) && this.detailGeneration === detailGeneration) { this.post({ type: 'error', requestId, message: error instanceof Error ? error.message : String(error) }); } }
@@ -225,7 +244,8 @@ export class AssetController implements vscode.Disposable {
             const filename = await fs.realpath(path.join(this.inventory.root, entry.path));
             if (!this.current(generation) || !assetContained(this.inventory.root, filename)) { return; }
             await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(filename));
-        } else if (message.type === 'detail' && count(message.requestId)) { await this.detail(entry, message.requestId); }
+        } else if (message.type === 'savePng' && typeof message.name === 'string' && typeof message.data === 'string') { await this.savePng(entry, message.name, message.data, generation); }
+        else if (message.type === 'detail' && count(message.requestId)) { await this.detail(entry, message.requestId); }
         else if (message.type === 'findReferences' && count(message.requestId)) {
             this.post({ type: 'referenceMatches', requestId: message.requestId, assetId: entry.id, ...referenceIdsForAsset(entry, this.references) });
         }
@@ -235,6 +255,17 @@ export class AssetController implements vscode.Disposable {
                 this.post({ type: 'pixels', requestId: message.requestId, data: { assetId: entry.id, textureId: message.textureId, mip: message.mip, ...decoded, data: decoded.data.toString('base64') } });
             } catch (error) { this.post({ type: 'error', requestId: message.requestId, message: error instanceof Error ? error.message : String(error) }); }
         }
+    }
+    /** Writes the texture the browser shows, already encoded as PNG there, to a file the user places. */
+    private async savePng(entry: AssetEntry, name: string, data: string, generation: number): Promise<void> {
+        const bytes = data.length <= PNG_BASE64_LIMIT && /^[A-Za-z0-9+/]+=*$/.test(data) ? Buffer.from(data, 'base64') : undefined;
+        if (!bytes || !bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) || !this.inventory) { throw new Error('This texture preview cannot be saved as a PNG file.'); }
+        const filename = name.replace(/[^\w.-]+/g, '_').slice(0, 96) || path.parse(entry.name).name;
+        const target = await vscode.window.showSaveDialog({ title: 'Save Texture as PNG', filters: { 'PNG image': ['png'] },
+            defaultUri: vscode.Uri.file(path.join(this.inventory.root, `${filename}.png`)) });
+        if (!target || !this.current(generation)) { return; }
+        await vscode.workspace.fs.writeFile(target, bytes);
+        void vscode.window.showInformationMessage(`Saved ${path.basename(target.fsPath)}.`);
     }
     private current(generation: number): boolean { return !this.disposed && this.generation === generation; }
     private post(message: AssetMessage): void {

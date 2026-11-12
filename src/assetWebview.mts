@@ -73,6 +73,7 @@ function renderAssets(): void {
 function clearPreview(): void {
     for (const media of element('preview').querySelectorAll<HTMLMediaElement>('audio,video')) { media.pause(); media.removeAttribute('src'); media.load(); }
     pixels = undefined; element('preview').replaceChildren(); element('preview').hidden = true; element('preview-note').textContent = '';
+    element<HTMLButtonElement>('save-png').disabled = true;
 }
 function select(entry: AssetEntry): void {
     selected = entry; state.selectedPath = entry.path; detail = undefined; clearPreview();
@@ -142,6 +143,7 @@ function draw(): void {
     context.putImageData(new ImageData(rgba, pixels.width, pixels.height), 0, 0);
     canvas.setAttribute('aria-label', `Texture preview ${pixels.width} by ${pixels.height}`);
     element('preview').replaceChildren(canvas); element('preview').hidden = false;
+    element<HTMLButtonElement>('save-png').disabled = false;
 }
 function renderPixels(data: AssetPixels): void {
     if (!selected || data.assetId !== selected.id || data.textureId !== texture()?.id) { return; }
@@ -250,6 +252,10 @@ element('report-previous').addEventListener('click', () => { state.reportOffset 
 element('report-next').addEventListener('click', () => { state.reportOffset += 50; renderReport(); });
 textureSelect.addEventListener('change', chooseTexture); mipSelect.addEventListener('change', requestTexture); element('texture-search').addEventListener('input', filterTextures);
 element('channels').addEventListener('change', draw); element('zoom').addEventListener('change', () => { element('preview').dataset.zoom = element<HTMLSelectElement>('zoom').value; });
+element('save-png').addEventListener('click', () => {
+    const canvas = element('preview').querySelector('canvas'), current = texture();
+    if (canvas && selected && current) { vscode.postMessage({ type: 'savePng', id: selected.id, name: current.name, data: canvas.toDataURL('image/png').slice('data:image/png;base64,'.length) }); }
+});
 element('open-asset').addEventListener('click', () => action('openAsset')); element('copy-name').addEventListener('click', () => action('copyName')); element('copy-hash').addEventListener('click', () => action('copyHash'));
 element('find-references').addEventListener('click', () => { if (selected) { findReferences(selected); } });
 element('reference-focus-clear').addEventListener('click', () => { state.referencePath = ''; referenceFocus = undefined; referenceRequest = ++sequence; renderReport(); });

@@ -2,9 +2,9 @@
 
 Run **FiveM: Browse Resource Assets**, or use **FiveM → Browse Resource Assets** on a resource folder in Explorer. The command also accepts a resource manifest URI when invoked by another editor command. The browser opens in a normal editor tab and reuses that tab when you choose another resource. It reads local files and the language server's current source index; it does not connect to a game or modify assets.
 
-Use **Assets** to search paths, names, decimal hashes or `0x` hashes, then narrow the type filter. Select a YTD to browse its texture names, choose a mip, and switch between **RGBA**, **RGB** and **Alpha**. **Fit** and **100%** control preview scale. **Copy name** copies the filename stem; **Copy hash** copies its lowercase ASCII JOAAT name hash. Non-ASCII names remain browsable but do not receive a guessed hash.
+Use **Assets** to search paths, names, decimal hashes or `0x` hashes, then narrow the type filter. Select a YTD to browse its texture names, choose a mip, and switch between **RGBA**, **RGB** and **Alpha**. **Fit** and **100%** control preview scale, and **Save PNG…** writes the mip and channels shown to a PNG file you place. **Copy name** copies the filename stem; **Copy hash** copies its lowercase ASCII JOAAT name hash. Non-ASCII names remain browsable but do not receive a guessed hash.
 
-**Open file** uses the editor's normal file handler. **Show references** resolves the selected asset against the retained source snapshot, including broad manifest patterns whose displayed asset links are capped. **Show all references** clears that asset filter. Use **Refresh** after rebuilding, replacing or adding files; asset bytes are read from disk on demand. Search, selection and view state survive hiding the tab.
+**Open file** uses the editor's normal file handler: texture files open in the [texture viewer](texture-viewer.md), map files in the [map viewer](map-viewer.md), models and collision files in the [model viewer](model-viewer.md), animation dictionaries in the [animation dictionary viewer](animation-viewer.md). **Show references** resolves the selected asset against the retained source snapshot, including broad manifest patterns whose displayed asset links are capped. **Show all references** clears that asset filter. Use **Refresh** after rebuilding, replacing or adding files; asset bytes are read from disk on demand. Search, selection and view state survive hiding the tab.
 
 ## Formats
 
@@ -16,7 +16,10 @@ Use **Assets** to search paths, names, decimal hashes or `0x` hashes, then narro
 | PNG, JPEG, WebP, GIF, BMP | Image preview. |
 | WAV, MP3, OGG, M4A, WebM, MP4 | Browser playback controls where VS Code supports the codec. |
 | `.xml`, `.meta`, `.json` | Text preview, JSON syntax result, and common XML asset/model/texture-dictionary fields. XML extraction is a text summary, not schema validation. CodeWalker XML exports can be inspected as `.xml` files. |
-| YDR, YDD, YFT, YBN, YMAP, YTYP, YMT, YNV, YND, YPT, YCD, YLD, AWC | Inventory, name/hash lookup, file size and available container header metadata. No 3D, map geometry, animation or audio-bank playback is implemented. |
+| YMAP, YTYP | Inventory, name/hash lookup and header metadata here; **Open file** shows entities, interiors and coordinates in the [map viewer](map-viewer.md). |
+| YDR, YDD, YFT, YBN | Inventory, name/hash lookup and header metadata here; **Open file** shows a 3D preview in the [model viewer](model-viewer.md). |
+| YCD | Inventory, name/hash lookup and header metadata here; **Open file** lists and plays the dictionary's clips in the [animation dictionary viewer](animation-viewer.md). |
+| YMT, YNV, YND, YPT, YLD, AWC | Inventory, name/hash lookup, file size and available container header metadata. No navigation mesh, particle or audio-bank decoder is implemented. |
 | RSC8 or FXAP | Explicit format/support status. RSC8 payloads and encrypted asset-escrow content are not decoded. |
 
 RSC8 is a container family, **not a synonym for GTA V Enhanced**. The supported Gen9 YTD layout uses RSC7 version 5. An identified layout does not guarantee an asset will work with a particular game build.

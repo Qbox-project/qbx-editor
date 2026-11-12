@@ -34,4 +34,5 @@ export type AssetMessage = { type: 'loading' } | { type: 'state'; data: AssetVie
     | { type: 'error'; requestId?: number; message: string };
 export type AssetAction = { type: 'ready' | 'choose' | 'refresh' } | { type: 'loaded'; snapshotId: string } | { type: 'detail' | 'findReferences'; id: string; requestId: number }
     | { type: 'texture'; id: string; textureId: number; mip: number; requestId: number }
-    | { type: 'openAsset' | 'openSource' | 'copyName' | 'copyHash'; id: string };
+    | { type: 'openAsset' | 'openSource' | 'copyName' | 'copyHash'; id: string }
+    | { type: 'savePng'; id: string; name: string; data: string };
