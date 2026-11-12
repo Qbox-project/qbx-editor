@@ -1,4 +1,10 @@
-export type ReferenceKind = 'native' | 'control' | 'pedFlag';
+/** `native`, `control` and `pedFlag` come from the language server; the others from the catalogs the extension bundles. */
+export type ReferenceKind = 'native' | 'control' | 'pedFlag' | 'blip' | 'blipColor' | 'marker' | 'ped' | 'vehicle' | 'weapon';
+export const REFERENCE_KINDS: readonly ReferenceKind[] = ['native', 'control', 'pedFlag', 'blip', 'blipColor', 'marker', 'ped', 'vehicle', 'weapon'];
+export const REFERENCE_KIND_LABELS: Readonly<Record<ReferenceKind, string>> = {
+    native: 'Native', control: 'Control', pedFlag: 'Ped config flag', blip: 'Blip', blipColor: 'Blip colour', marker: 'Marker',
+    ped: 'Ped model', vehicle: 'Vehicle model', weapon: 'Weapon',
+};
 export type ReferenceSide = 'client' | 'server' | 'shared';
 
 export interface ReferenceSearchParams {
@@ -18,6 +24,8 @@ export interface ReferenceItem {
     namespace?: string;
     hash?: string;
     numericId?: number;
+    /** The name people know a catalog entry by, such as `Adder` for the model `adder`. */
+    label?: string;
 }
 
 export interface ReferenceSearchResult {

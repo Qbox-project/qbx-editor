@@ -1,3 +1,4 @@
+import { REFERENCE_KINDS } from './referenceTypes';
 import type {
     ReferenceAction, ReferenceDetail, ReferenceHostMessage, ReferenceRequest, ReferenceSearchParams, ReferenceSearchResult,
 } from './referenceTypes';
@@ -24,7 +25,10 @@ export function validReferenceId(value: unknown): value is string {
     if (/^native:[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
         return true;
     }
-    const numeric = /^(?:control|pedFlag):(0|[1-9][0-9]{0,9})$/.exec(value);
+    if (/^(?:ped|vehicle|weapon):[A-Za-z0-9_]{1,96}$/.test(value)) {
+        return true;
+    }
+    const numeric = /^(?:control|pedFlag|blip|blipColor|marker):(0|[1-9][0-9]{0,9})$/.exec(value);
     return !!numeric && Number(numeric[1]) <= 0xffffffff;
 }
 
@@ -35,14 +39,14 @@ export function normalizeReferenceSearch(value: unknown): ReferenceSearchParams 
     }
     const { query = '', kind = 'all', side = 'all', namespace = '', offset = 0 } = value;
     if (typeof query !== 'string' || [...query].length > 256
-        || typeof kind !== 'string' || !['all', 'native', 'control', 'pedFlag'].includes(kind)
+        || typeof kind !== 'string' || !(kind === 'all' || (REFERENCE_KINDS as readonly string[]).includes(kind))
         || typeof side !== 'string' || !['all', 'client', 'server', 'shared'].includes(side)
         || typeof namespace !== 'string' || namespace.length > 64 || !integer(offset)) {
         return undefined;
     }
     return {
         query, kind: kind as ReferenceSearchParams['kind'],
-        side: kind === 'control' || kind === 'pedFlag' ? 'all' : side as ReferenceSearchParams['side'],
+        side: kind === 'all' || kind === 'native' ? side as ReferenceSearchParams['side'] : 'all',
         namespace: kind === 'native' ? namespace : '', offset, limit: 50,
     };
 }
@@ -182,7 +186,7 @@ export class ReferenceSession<TTarget = unknown> {
             switch (action) {
                 case 'copy':
                     await this.actions.copy(detail.copyText);
-                    message = detail.kind === 'native' ? 'Native name copied.' : 'ID copied.';
+                    message = detail.kind === 'native' ? 'Native name copied.' : /^\d+$/.test(detail.copyText) ? 'ID copied.' : 'Name copied.';
                     break;
                 case 'copyHash':
                     if (detail.kind !== 'native' || !detail.hash || !/^0x[0-9A-Fa-f]+$/.test(detail.hash)) {

@@ -12,7 +12,7 @@ export function getReferenceHtml(scriptUri: string, nonce: string): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${safeNonce}'; style-src 'nonce-${safeNonce}'; img-src 'none'; connect-src 'none'; font-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${safeNonce}'; style-src 'nonce-${safeNonce}'; img-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none';">
 <title>FiveM Reference</title>
 <style nonce="${safeNonce}">
 ${browserStyles}</style>
@@ -23,7 +23,7 @@ ${browserStyles}</style>
 <div class="heading"><h1>FiveM reference</h1><span class="offline">Available offline</span></div>
 <div class="search-row"><input id="search" class="search-field" type="search" maxlength="256" aria-label="Search the FiveM reference" placeholder="Search names, hashes, IDs or bindings…"><button id="refresh" title="Refresh search" aria-label="Refresh search">Refresh</button></div>
 <div class="filters">
-<div class="filter"><label for="catalog">Catalog</label><select id="catalog"><option value="all">All references</option><option value="native">Natives</option><option value="control">Controls</option><option value="pedFlag">Ped config flags</option></select></div>
+<div class="filter"><label for="catalog">Catalog</label><select id="catalog"><option value="all">All references</option><option value="native">Natives</option><option value="control">Controls</option><option value="pedFlag">Ped config flags</option><option value="blip">Blips</option><option value="blipColor">Blip colours</option><option value="marker">Markers</option><option value="vehicle">Vehicle models</option><option value="ped">Ped models</option><option value="weapon">Weapons</option></select></div>
 <div class="filter" id="side-filter"><label for="side">Availability</label><select id="side"><option value="all">All sides</option><option value="client">Client + shared</option><option value="server">Server + shared</option><option value="shared">Shared only</option></select></div>
 <div class="filter" id="namespace-filter" hidden><label for="namespace">Namespace</label><select id="namespace"><option value="">All namespaces</option></select></div>
 </div>

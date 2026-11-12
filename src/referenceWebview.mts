@@ -3,6 +3,7 @@
 import { marked, type Token, type Tokens } from 'marked';
 import { decodeMarkdownEntities } from './referenceMarkdown.js';
 import { normalizeReferenceLink, normalizeReferenceSearch } from './referenceSession.js';
+import { REFERENCE_KIND_LABELS } from './referenceTypes.js';
 import type {
     ReferenceAction, ReferenceDetail, ReferenceHostMessage, ReferenceItem, ReferenceSearchParams, ReferenceWebviewMessage,
 } from './referenceTypes.js';
@@ -84,7 +85,14 @@ function sendSearch(offset = 0): void {
 }
 
 function kindLabel(kind: ReferenceItem['kind']): string {
-    return kind === 'native' ? 'Native' : kind === 'control' ? 'Control' : 'Ped config flag';
+    return REFERENCE_KIND_LABELS[kind] ?? 'Reference';
+}
+
+/** What tells entries of one kind apart beside their name: a native's namespace and side, an ID, or a model's group. */
+function summary(item: ReferenceItem): string {
+    if (item.kind === 'native') { return `${item.namespace ?? ''} · ${item.side}`; }
+    if (item.numericId !== undefined) { return `ID ${item.numericId}`; }
+    return [item.label, item.namespace].filter(Boolean).join(' · ');
 }
 
 function selectReference(item: ReferenceItem, focus = false): void {
@@ -125,7 +133,7 @@ function renderResults(): void {
         meta.className = 'result-meta';
         const kind = node('span', kindLabel(item.kind));
         kind.className = 'kind';
-        meta.append(kind, node('span', item.kind === 'native' ? `${item.namespace ?? ''} · ${item.side}` : `ID ${item.numericId}`));
+        meta.append(kind, node('span', summary(item)));
         button.append(name, meta);
         button.addEventListener('click', () => selectReference(item));
         button.addEventListener('keydown', (event) => {
@@ -279,13 +287,13 @@ function renderDetail(detail: ReferenceDetail, links: string[]): void {
     element('detail-name').textContent = detail.name;
     const badges = element('detail-badges');
     badges.replaceChildren();
-    for (const text of [detail.namespace, detail.side, detail.kind === 'native' ? detail.hash : `ID ${detail.numericId}`]) {
+    for (const text of [detail.label, detail.namespace, detail.side, detail.kind === 'native' ? detail.hash : detail.numericId !== undefined ? `ID ${detail.numericId}` : undefined]) {
         if (text) { const badge = node('span', text); badge.className = 'badge'; badges.append(badge); }
     }
     element('signature-box').hidden = !detail.signature;
     element('signature').textContent = detail.signature ?? '';
-    element('copy').textContent = detail.kind === 'native' ? 'Copy name' : 'Copy ID';
-    element('insert').textContent = detail.kind === 'native' ? 'Insert Lua call' : 'Insert ID';
+    element('copy').textContent = detail.numericId === undefined ? 'Copy name' : 'Copy ID';
+    element('insert').textContent = detail.kind === 'native' ? 'Insert Lua call' : detail.numericId === undefined ? 'Insert hash' : 'Insert ID';
     element('copy-hash').hidden = detail.kind !== 'native' || !detail.hash;
     updateTarget();
     const parameters = element('parameters');
