@@ -31,7 +31,7 @@ The language server is included. You can work on a single resource or an entire
 | --- | --- |
 | Completion and hover | Look up FiveM natives, runtime globals, exports and LuaCATS types as you write. |
 | Control and flag IDs | Hover a native's numeric control or ped configuration flag argument for its documented name and reference. |
-| FiveM reference tab | Search natives, controls and ped flags, read documentation and insert Lua calls or IDs. |
+| FiveM reference tab | Search natives, controls, ped flags, blips, markers and vehicle, ped and weapon models; read documentation and insert Lua calls, IDs or hashes. |
 | Diagnostics and quick fixes | Find Lua mistakes, missing manifest imports and event/export mismatches in the Problems panel. |
 | Client/server context | Catch calls used on the wrong side and see the current file's side in the status bar. |
 | Navigation and rename | Follow definitions and references across your workspace and rename supported symbols. |
@@ -44,10 +44,19 @@ The language server is included. You can work on a single resource or an entire
 | Resource wizard | Preview and create a new resource from a plain Lua, ox_lib or Qbox starter. |
 | Resource Details | Inspect file counts, events, exports and resource dependencies in an editor tab. |
 | NUI preview | Preview a local built UI, send JSON messages, mock callback responses and open Lua handlers. |
-| Runtime log viewer | Follow a selected server log, filter recent output and open Lua stack traces in the editor. |
+| Resource control | Restart the resource of the file you are editing with one shortcut; start, stop, ensure and refresh from menus. |
+| Runtime log viewer | Follow a server log with errors and warnings coloured, filter recent output and open Lua stack traces in the editor, also from the terminal. |
 | Workspace health | Check language-server availability, duplicate resource names and unresolved indexed dependencies. |
+| Resource data checks | Find vehicle and weapon metadata that does not match what a resource streams, data files clients never receive, assets two resources stream under one name or that are too large, and mod kit or siren IDs in conflict. |
+| Locale matrix | See which translations each language of a resource is missing. |
+| server.cfg support | Complete commands, variables and resource names, and check what a server starts against the resources beside it. |
 | Lua utilities | Calculate joaat hashes, pick RGB/hex colors, and convert JSON into an editable Lua table. |
 | Resource assets | Browse files, preview supported media and GTA textures, and inspect asset references and manifest issues. |
+| Map viewer | Click a `.ymap` or `.ytyp` to read entities, interiors, rooms and car generators, pick points on a top-down map and copy coordinates as Lua. |
+| Model viewer | Click a `.ydr`, `.ydd`, `.yft` or `.ybn` for a textured 3D preview or the collision mesh. |
+| Animation dictionaries | Click a `.ycd` to play its clips on a skeleton and copy the Lua that plays one. |
+| Texture viewer and editor | Click a `.ytd` or `.dds` to preview every texture and copy names. Replace, add or delete textures of a `.ytd` from PNG files; mip levels and compression are done for you. |
+| FiveM sidebar | Find the resources of your workspace and every tool behind one Activity Bar icon. |
 | Coding assistant tools | Query resource information, diagnostics, symbol references and FiveM documentation through VS Code or MCP. |
 
 This editor is part of **Qbox Lua (`qbx-lua`)**. Its language server,
@@ -151,6 +160,14 @@ strings; the change takes effect after the window reloads.
 
 ## Control resources from Explorer
 
+While you edit any file of a resource, **Ctrl+Alt+R** (**Ctrl+Cmd+R** on macOS)
+restarts that resource. The same action is **FiveM: Restart Resource** in the
+Command Palette, the **FiveM** submenu of the editor and its tab, a button in
+the editor title bar once a connection is configured, and the first entry of the
+tool list behind the **Qbox Lua** status bar item. Without a file of a resource
+in focus, the commands ask which resource you mean and list the one used last
+first. **Ensure Resource** starts a resource or restarts a running one.
+
 Right-click a resource folder in VS Code's normal Explorer and choose **FiveM →
 Start Resource**, **Stop Resource**, **Restart Resource**, or **Open Manifest**.
 Your existing folder hierarchy stays in place, including groups such as `[qbx]`
@@ -173,23 +190,28 @@ control characters cannot be used by this client. See the
 [Cfx server commands reference](https://docs.fivem.net/docs/server-manual/server-commands/#rcon_password-password).
 
 Commands and server replies appear in **Output → Qbox Lua Resources**. A saved
-connection is not a claim that the server is online. If a reply times out, the
-command may already have run; it is never retried automatically. Cancelling only
-stops waiting for the response. RCON output is command response text, not a live
+connection is not a claim that the server is online. An action returns as soon
+as the server has answered and gone quiet, usually well within a second. If no
+reply arrives within ten seconds, the command may already have run; it is never
+retried automatically. Cancelling only stops waiting for the response. RCON output is command response text, not a live
 server log stream or a resource-state monitor.
 
 Resource names must match the connected server. Duplicate names in the workspace
 are rejected because RCON identifies resources by name, not by local path. Names
 containing spaces or console syntax are also rejected. `start` starts a stopped
-resource; `restart` restarts an already running one. Newly added resources need
-the server's `refresh` command before they become available. The extension does
-not upload files, start FXServer itself, or automatically restart on save.
+resource; `restart` restarts an already running one; `ensure` does whichever
+applies. A resource added while the server runs is unknown to it until a
+`refresh`: when the server answers that it cannot find the resource, the
+extension offers **Refresh and Retry**, and **FiveM: Refresh Server Resource
+List** sends `refresh` on its own. The extension does not upload files, start
+FXServer itself, or automatically restart on save.
 
 Discovery follows manifest and folder creation, renaming and deletion, supports
 multiple workspace roots, and excludes `node_modules`, `.git`, `vendor` and
 `.vscode-test`. When a resource folder appears, is renamed or is removed, the
 language index is refreshed as well, so a downloaded resource or a `git checkout`
-needs no manual reindex. Runtime actions require a trusted workspace. In Remote SSH/WSL,
+needs no manual reindex. Folders without Lua files, such as the build output of
+an interface, do not cause one. Runtime actions require a trusted workspace. In Remote SSH/WSL,
 the connection originates from the remote extension host; virtual filesystem
 workspaces are not supported for resource controls.
 
@@ -197,19 +219,24 @@ workspaces are not supported for resource controls.
 
 Run **FiveM: Open Runtime Log** from the Command Palette and select an FXServer or
 txAdmin UTF-8 log file accessible to the VS Code extension host. The tab follows
-new output, including file rotation and truncation. Filter by text or resource
-name, pause/resume, toggle autoscroll, or clear the displayed history.
+new output, including file rotation and truncation, and follows the same file
+again the next time you open it; **Choose log file…** switches to another.
+Script errors are shown in the error colour and warnings in the warning colour,
+and **Errors and warnings only** hides everything else. Filter by text or
+resource name, pause/resume, toggle autoscroll, or clear the displayed history.
 
 Recognized Lua traces such as `@my_resource/server/main.lua:42` link to files inside
 discovered workspace resources. Duplicate resource names prompt for a folder;
 unavailable files are reported when opened. Runtime-internal paths and resources
-outside workspace discovery remain plain text.
+outside workspace discovery remain plain text. The same traces are links in the
+integrated terminal, so a server started there needs no log file to jump to code.
 
 The viewer retains at most 1,000 lines and 512 KiB of text, with 8,192 characters
 per line, and displays the latest 300 matching lines. Initial reads and large
 catch-ups use a bounded recent suffix and report skipped output. **Clear view**
 does not modify the log file. Closing the tab stops following the file and drops
-its history; no log contents or selected path are persisted by the extension.
+its history. Only the path of the followed file is remembered, for the
+workspace; log contents are never stored.
 This feature reads a selected file and does not connect to txAdmin or stream RCON.
 
 ## Check workspace health
@@ -229,6 +256,47 @@ output channel instead of claiming the workspace passed its checks.
 
 Both runtime tools load on demand, reuse local files or the existing index, and
 require no additional service or package dependency.
+
+## Check resource data
+
+Run **FiveM: Check Resource Data** for a report on what a server refuses to load
+quietly. From a resource's **FiveM** menu it checks that resource; from the
+Command Palette it checks every resource of the workspace and compares them:
+
+- **Vehicles:** models in `vehicles.meta` that the resource does not stream,
+  handling names no `handling.meta` defines, models without a `carvariations.meta`
+  entry, and mod kits `carcols.meta` does not define.
+- **Across resources:** mod kit and siren IDs used twice, vehicle models defined
+  twice, and files that two resources stream under the same name.
+- **Weapons:** archetype and weapon models that are neither streamed nor declared.
+- **Data files:** `data_file` entries that match no file, that no `files` entry
+  sends to clients, or whose type is misspelled; metadata that is not well-formed XML.
+- **Streaming memory:** the largest streamed assets with the physical memory the
+  game reserves for each, marking those at or above the 16 MiB at which the game
+  starts warning.
+- **Asset Escrow:** `escrow_ignore` patterns that match nothing, a missing
+  `lua54 'yes'`, and which resources are escrowed. Those also show a lock in the
+  FiveM sidebar.
+
+Findings about text files are listed in the Problems panel too. See the
+[resource checks guide](docs/resource-checks.md) for what each check can and cannot know.
+
+**FiveM: Show Locale Matrix** compares the `.json` and `.lua` files in a
+resource's `locales` folder: per language how many keys are missing, every
+missing key with the base text, and translations whose `%s` or `%{name}`
+placeholders differ from the base language.
+
+## Edit server.cfg
+
+`server.cfg`, and other `.cfg` files that hold server commands, get their own
+language: highlighting, completion of commands, common variables and their
+values, the resources and categories for `ensure`, and the files for `exec`.
+Hovers explain commands and variables, and `exec` targets are links.
+
+When the file has a `resources` folder beside it, what it starts is checked
+against those resources: names and categories that do not exist, a resource
+started twice, a dependency that is missing, and a resource listed before a
+dependency it needs. See the [server.cfg guide](docs/server-cfg.md).
 
 ## Inspect resource relationships
 
@@ -304,6 +372,46 @@ encrypted formats are identified explicitly. The browser also checks literal
 manifest declarations and explains incomplete scan coverage. See the
 [asset guide](docs/assets.md) for format support, limits and health checks.
 
+## Read maps and grab interior coordinates
+
+Click a `.ymap` or `.ytyp` file, or run **FiveM: Open Map Viewer**. Binary and XML
+files are both read. The viewer lists every entity with its world position and
+heading, draws a top-down map you can pan, zoom and pick points on, and exports
+binary files as CodeWalker-compatible XML.
+
+For an interior (MLO), the viewer combines the archetype file with the map that
+places it, so rooms, portals, doors and props appear at their world positions.
+Picked points and room floors take their height from the interior's collision
+file when the resource has one. Copy a position as `vec3` or `vec4`, a door as a
+Lua table, a room as an `ox_lib` box zone, or the `GetInteriorAtCoords` lookup. Model names are recovered from the
+resource's asset files and from name lists you add with **FiveM: Add Asset Name
+List**. See the [map viewer guide](docs/map-viewer.md).
+
+## Preview models and collision in 3D
+
+Click a `.ydr`, `.ydd`, `.yft` or `.ybn` file, or run **FiveM: Open Model
+Viewer**. Models are drawn with their diffuse textures, found in the file itself
+or in the resource's texture dictionaries; collision files are coloured by
+surface type. Switch detail levels and shading, overlay a wireframe, grid or
+bounding box, and copy the model's size. Legacy and Gen9 (GTA V Enhanced) model
+layouts are both read. See the [model viewer guide](docs/model-viewer.md).
+
+## Find animation names
+
+Click a `.ycd` file, or run **FiveM: Open Animation Dictionary**. The viewer lists
+every clip with its length and frame rate and plays the selected one on a ped
+skeleton, with scrubbing, frame stepping and speed control. It copies the
+dictionary name, the clip name, the current phase, an `ox_lib` `lib.playAnim`
+call or a native snippet. See the [animation dictionary guide](docs/animation-viewer.md).
+
+Texture files open the same way: click a `.ytd` or `.dds` for its textures, mip
+levels and channels. A `.ytd` can be edited there: replace a texture with a PNG
+file, add PNG files as new textures, rename or delete textures, and export them
+as PNG. Sizes are rounded to powers of two, mip levels are generated and the
+image is compressed for you; nothing is written until you save, and undo works.
+**FiveM: New Texture Dictionary from Images** makes a `.ytd` from PNG files. See
+the [texture viewer and editor guide](docs/texture-viewer.md).
+
 ## Connect coding assistants
 
 Seven read-only tools expose resource discovery/details, workspace health, Lua
@@ -312,7 +420,11 @@ VS Code versions with the Language Model Tool API can use them from the agent
 tool picker. Other clients can launch the bundled MCP stdio server with Node and
 explicit workspace folders; extensions can use the versioned public API.
 
-Run **FiveM: Show Coding Assistant Setup** for the [setup guide](docs/assistant-tools.md).
+**FiveM: Copy MCP Configuration** copies a ready configuration for Claude Code,
+Cursor, VS Code or any `mcpServers` client, for the folders that are open. It
+points at a launcher that keeps working when the extension updates; no file of
+any assistant is changed. Run **FiveM: Show Coding Assistant Setup** for the
+[setup guide](docs/assistant-tools.md).
 The tools include partial-result notes and an explicit index refresh option after
 saved-file changes. VS Code tools use current editor buffers; portable MCP reads
 saved files. Tool results describe local static analysis and reference data.
@@ -376,6 +488,13 @@ tab beside your code. Search native names or hashes, control names or IDs, defau
 bindings, and ped configuration flag names or IDs. Native results can be filtered
 by namespace and availability on the client, server or both.
 
+The **Catalog** filter also offers blip sprites and colours, marker types, and the
+names of vehicle, ped and weapon models. Blips, colours and markers insert their
+ID; a model or weapon inserts its name as a CfxLua hash literal such as
+`` `adder` ``, and its page shows the hash. These catalogs are generated from the
+[FiveM game references](https://docs.fivem.net/docs/game-references/) and need no
+language server.
+
 Select a result to read its signature, parameters, return values and documentation,
 or the control/flag reference. Copy its name, hash or ID, open its source, or insert
 a Lua call with parameter placeholders or an ID into the Lua editor identified in
@@ -432,7 +551,11 @@ to 128 KiB.
 
 ## Supported environments
 
-- VS Code 1.85 or newer on **Windows x64**, **Linux x64/ARM64**, and **macOS x64/ARM64**.
+- VS Code 1.85 or newer on **Windows x64/ARM64**, **Linux x64/ARM64**, **Alpine Linux x64/ARM64**
+  and **macOS x64/ARM64**. The test suite runs on 1.85 and on the current release.
+- Restricted Mode: Lua language features, the reference and the viewers work in a
+  workspace you have not trusted. Resource control, the NUI preview, the assistant
+  tools and a custom `qbxLua.server.path` or `qbxLua.library` wait for trust.
 - FiveM / GTA V resources using CfxLua, including client, server and shared scripts.
 - Qbox-specific checks are included; the Lua and FiveM tooling also works with resources
   that do not use Qbox.
@@ -479,7 +602,9 @@ and [rule list](https://github.com/Qbox-project/qbx-lua/blob/main/docs/rules.md)
 
 ## Editor settings
 
-Search for `qbxLua` in VS Code Settings.
+Search for `qbxLua` in VS Code Settings. One language server serves the whole
+window, so `library`, `diagnostics`, `inlayHints` and `semanticTokens` are window
+settings: in a multi-root workspace set them in the workspace file, not per folder.
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -493,26 +618,38 @@ Search for `qbxLua` in VS Code Settings.
 | `qbxLua.sqlHighlighting.enable` | `true` | Highlight SQL in database calls, calls of `sql` query functions and strings below `---@language sql`. Takes effect after the window reloads, for every window. |
 | `qbxLua.hover.verbosity` | `1` | How much a hover shows when it opens, from `0` (the type alone) to `5`. A hover's `+` and `-` buttons show more or less of it. |
 | `qbxLua.hover.rememberVerbosity` | `false` | Open hovers at the level last chosen with the `+` and `-` buttons, also after a restart. |
+| `qbxLua.mapViewer.xmlFiles` | `"text"` | Open XML `.ymap` and `.ytyp` files as `text` or in the map `viewer`. Binary map files always open in the viewer. |
+| `qbxLua.assets.nameLists` | `[]` | Name lists the asset viewers use to turn hashes back into names. Stored per machine. |
 | `qbxLua.warnAboutOtherLuaExtensions` | `true` | Warn about other active Lua language servers. |
 | `qbxLua.server.path` | `""` | Advanced: use a custom language-server binary. |
 | `qbxLua.trace.server` | `"off"` | Advanced: trace language-server communication with `messages` or `verbose`. |
 
 ## Commands and troubleshooting
 
-Open the Command Palette and search for **Qbox Lua**:
+The **FiveM** icon in the Activity Bar lists your resources and every tool, and
+clicking **Qbox Lua** in the status bar lists the same tools with the actions
+for the resource you are editing first. The commands are also in the Command
+Palette: search for **Qbox Lua** for the language tools below and for **FiveM**
+for everything about resources and game files.
 
-- **Open Snippet Browser** and **Show Snippets** open the recipe and custom snippet tab.
+- **Open Snippet Browser** opens the recipe and custom snippet tab.
 - **Save Selection as Snippet** saves selected Lua code to a personal or workspace library.
 - **Edit Personal Snippets** and **Edit Workspace Snippets** open the editable JSON libraries.
 - **Open FiveM Reference** opens the searchable native, control and ped flag reference.
 - **Open Lua Utilities** opens hashes, colors and JSON-to-Lua conversion.
-- **Show Status** and **Show Output** help diagnose server startup and indexing.
+- **Show Tools and Status** and **Show Output** help diagnose server startup and indexing.
+- **Reset SQL Highlighting Functions** drops the query functions that other workspaces added to SQL highlighting.
 - **Reindex Workspace** refreshes indexed files and manifests.
 - **Restart Language Server** also reloads library and workspace configuration.
 
 Search for **FiveM: Create Resource** to open the resource creation wizard.
 **FiveM: Browse Resource Assets** opens asset previews and checks;
-**FiveM: Show Coding Assistant Setup** opens the VS Code/API/MCP guide.
+**FiveM: Open Map Viewer**, **FiveM: Open Model Viewer** and **FiveM: Open Animation Dictionary** open a game file you pick;
+**FiveM: Check Resource Data** and **FiveM: Show Locale Matrix** open the check reports;
+**FiveM: Show Coding Assistant Setup** opens the VS Code/API/MCP guide and
+**FiveM: Copy MCP Configuration** copies the configuration for an assistant.
+
+Tool tabs come back after a window reload, each with the resource it showed.
 
 If a resource dependency is missing from completion or navigation, check that it
 is available beside the workspace or included in `qbxLua.library`. When reporting

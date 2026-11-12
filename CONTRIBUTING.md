@@ -36,12 +36,26 @@ npm run build
 npm test
 ```
 
-`npm test` compiles the tests and launches an isolated VS Code instance against
-the sibling tooling workspace's language-server resource fixtures. The first run may download
-VS Code and requires a working desktop session, or a virtual display on Linux.
-The server binary must be built before running the integration tests.
+`npm test` runs three stages:
 
-Add a regression case under `test/suite/` for extension behavior changes. If a
+1. `npm run test:unit`: the suites that need no editor, listed in `test/unit.ts`,
+   under `node --test`. They take a few seconds and need neither a VS Code
+   download nor the sibling checkout.
+2. The editor suite in `test/suite/index.ts`, in an isolated VS Code instance
+   opened on the sibling tooling workspace's language-server resource fixtures.
+3. `test/suite/restricted.ts`, in a second instance that opens the same
+   workspace without trust.
+
+The first run may download VS Code and requires a working desktop session, or a
+virtual display on Linux. The server binary must be built before the editor
+stages. `npm run test:host` runs stages 2 and 3 only. Set `QBX_TEST_FILTER` to
+part of a test name to run the matching editor tests, and `QBX_VSCODE_VERSION`
+to run them on another VS Code version; CI also runs them on the version in
+`engines.vscode`, so code that needs a newer API has to check for it.
+
+Add a regression case for extension behavior changes: in a suite of
+`test/unit.ts` when the code under test imports no `vscode`, otherwise under
+`test/suite/` and listed in `index.ts`. If a
 change spans the server, also run its tests from this directory:
 
 ```sh
@@ -50,8 +64,10 @@ cargo test --workspace --locked --manifest-path ../qbx-lua/Cargo.toml
 
 For packaging changes, run `npm run package -- --target <platform>` with a
 server binary built for that same platform, then install the resulting VSIX in a
-test VS Code profile. Package targets are `win32-x64`, `linux-x64`, `linux-arm64`,
-`darwin-x64` and `darwin-arm64`. Selecting a target does not cross-compile the server.
+test VS Code profile. Package targets are `win32-x64`, `win32-arm64`, `linux-x64`,
+`linux-arm64`, `alpine-x64`, `alpine-arm64`, `darwin-x64` and `darwin-arm64`. The
+Alpine packages hold the static Linux server. Selecting a target does not
+cross-compile the server.
 
 For Marketplace workflow changes, run `python -m unittest discover -s scripts -p 'test_*.py'`.
 These checks cover incomplete releases, wrong platform/extension metadata, missing
