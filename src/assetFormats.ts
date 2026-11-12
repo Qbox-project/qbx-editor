@@ -56,7 +56,7 @@ function dimensions(width: number, height: number, mipCount: number): void {
     if (width < 1 || height < 1 || width > 32768 || height > 32768 || mipCount < 1
         || mipCount > 1 + Math.floor(Math.log2(Math.max(width, height)))) { throw new Error('Invalid texture dimensions or mip count.'); }
 }
-function bestMip(width: number, height: number, count: number): number | undefined {
+export function bestMip(width: number, height: number, count: number): number | undefined {
     for (let mip = 0; mip < count; mip++) { if (Math.max(1, width >> mip) * Math.max(1, height >> mip) <= MAX_PREVIEW_PIXELS) { return mip; } }
     return undefined;
 }
@@ -102,19 +102,9 @@ export function parseDds(data: Buffer, name = 'DDS texture'): TextureFile {
     return { header: { container: 'DDS', notes: [] }, bytes: data, textures: [{ id: 0, name, width, height, mipCount,
         format, encoding, offset, length, previewMip, notes }], notes: [] };
 }
-export async function parseYtd(data: Buffer): Promise<TextureFile> {
-    const header = inspectResourceHeader(data);
-    if (header.container !== 'RSC7') { throw new Error(header.notes.join(' ') || 'YTD preview requires an RSC7 resource.'); }
-    if (header.version !== 13 && header.version !== 5) { throw new Error(`YTD resource version ${header.version} is unsupported; expected Legacy 13 or Gen9 5.`); }
-    const system = header.systemBytes!, graphics = header.graphicsBytes!, total = system + graphics;
-    if (system < 64 || total > MAX_RESOURCE_BYTES) { throw new Error('Invalid or oversized resource pages (maximum 128 MiB expanded).'); }
-    let bytes: Buffer;
-    try { bytes = await inflate(data.subarray(16), { maxOutputLength: total }); }
-    catch {
-        if (data.length - 16 !== total) { throw new Error('YTD compressed payload is invalid or exceeds its declared pages.'); }
-        bytes = data.subarray(16);
-    }
-    if (bytes.length !== total) { throw new Error('YTD payload length does not match its declared resource pages.'); }
+/** Reads the texture dictionary at `at`, which is the root of a YTD and an embedded block of a model. */
+export function readTextureDictionary(bytes: Buffer, system: number, graphics: number, at: number, gen9: boolean): TextureData[] {
+    const total = system + graphics;
     function pointer(at: number, length: number): number {
         need(bytes, at, 8);
         const value = bytes.readBigUInt64LE(at);
@@ -124,12 +114,12 @@ export async function parseYtd(data: Buffer): Promise<TextureFile> {
         if (region < 0 || offset + length > region) { throw new Error('YTD contains an invalid resource pointer.'); }
         return offset + (base === 0x60000000n ? system : 0);
     }
-    const count = bytes.readUInt16LE(0x38), capacity = bytes.readUInt16LE(0x3a);
+    need(bytes, at, 0x40);
+    const count = bytes.readUInt16LE(at + 0x38), capacity = bytes.readUInt16LE(at + 0x3a);
     if (count > 2048 || capacity < count) { throw new Error('YTD dictionary count is invalid or exceeds 2,048 textures.'); }
-    const list = count ? pointer(0x30, count * 8) : 0;
+    const list = count ? pointer(at + 0x30, count * 8) : 0;
     const textures: TextureData[] = [];
     for (let id = 0; id < count; id++) {
-        const gen9 = header.version === 5;
         const at = pointer(list + id * 8, gen9 ? 80 : 128);
         const nameAt = pointer(at + 0x28, 1);
         const nameLimit = Math.min(nameAt + 1025, nameAt < system ? system : total);
@@ -150,12 +140,29 @@ export async function parseYtd(data: Buffer): Promise<TextureFile> {
         if (!gen9 && encoding && !encoding.startsWith('BC') && bytes.readUInt16LE(at + 0x56)
             && bytes.readUInt16LE(at + 0x56) !== textureLevelSize(width, 1, encoding)) { encoding = undefined; notes.push('Padded texture row strides are inspected without a preview.'); }
         if (!encoding) { notes.push('Texture metadata is available; this encoding/layout is not previewed.'); }
-        const length = encoding ? textureBytes(width, height, mipCount, encoding) : 1;
-        const offset = pointer(at + (gen9 ? 0x38 : 0x70), length);
+        // Converters leave out the smallest mip levels, so only the largest level has to fit; the rest is cut to what the page region holds.
+        const offset = pointer(at + (gen9 ? 0x38 : 0x70), encoding ? textureLevelSize(width, height, encoding) : 1);
+        const length = encoding ? Math.min(textureBytes(width, height, mipCount, encoding), (offset < system ? system : total) - offset) : 1;
         const previewMip = encoding ? bestMip(width, height, mipCount) : undefined;
         if (encoding && previewMip === undefined) { notes.push('No mip fits the one-megapixel preview limit.'); }
         textures.push({ id, name, width, height, mipCount, format, encoding, offset, length, previewMip, notes });
     }
+    return textures;
+}
+export async function parseYtd(data: Buffer): Promise<TextureFile> {
+    const header = inspectResourceHeader(data);
+    if (header.container !== 'RSC7') { throw new Error(header.notes.join(' ') || 'YTD preview requires an RSC7 resource.'); }
+    if (header.version !== 13 && header.version !== 5) { throw new Error(`YTD resource version ${header.version} is unsupported; expected Legacy 13 or Gen9 5.`); }
+    const system = header.systemBytes!, graphics = header.graphicsBytes!, total = system + graphics;
+    if (system < 64 || total > MAX_RESOURCE_BYTES) { throw new Error('Invalid or oversized resource pages (maximum 128 MiB expanded).'); }
+    let bytes: Buffer;
+    try { bytes = await inflate(data.subarray(16), { maxOutputLength: total }); }
+    catch {
+        if (data.length - 16 !== total) { throw new Error('YTD compressed payload is invalid or exceeds its declared pages.'); }
+        bytes = data.subarray(16);
+    }
+    if (bytes.length !== total) { throw new Error('YTD payload length does not match its declared resource pages.'); }
+    const textures = readTextureDictionary(bytes, system, graphics, 0, header.version === 5);
     return { header, bytes, textures, notes: [header.version === 5 ? 'Gen9/Enhanced YTD layout (RSC7 version 5).' : 'Legacy YTD layout (RSC7 version 13).'] };
 }
 export function textureMip(file: TextureFile, textureId: number, mip: number): { width: number; height: number; encoding: TextureEncoding; data: Buffer } {
@@ -166,6 +173,7 @@ export function textureMip(file: TextureFile, textureId: number, mip: number): {
     let offset = texture.offset;
     for (let level = 0; level < mip; level++) { offset += textureLevelSize(Math.max(1, texture.width >> level), Math.max(1, texture.height >> level), texture.encoding); }
     const length = textureLevelSize(width, height, texture.encoding);
+    if (offset + length > texture.offset + texture.length) { throw new Error('This mip level is not stored in the file; choose a larger one.'); }
     need(file.bytes, offset, length);
     return { width, height, encoding: texture.encoding, data: file.bytes.subarray(offset, offset + length) };
 }

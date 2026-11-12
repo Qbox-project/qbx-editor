@@ -105,6 +105,12 @@ const tests: Test[] = [
         assert.equal(mip.data.length, 65536); assert.deepEqual(mip.data.subarray(0, 8), RED_BC1);
         assert.throws(() => textureMip(file, 0, 3), /mip/); assert.throws(() => textureMip(file, 5, 0), /texture/);
     }],
+    ['a dictionary whose smallest mip levels were left out still previews the levels it holds', async () => {
+        const shortened = await parseYtd(syntheticYtd(13, true, (pages) => { pages[0x80 + 0x5d] = 3; pages.writeBigUInt64LE(0x600001f0n, 0x80 + 0x70); RED_BC1.copy(pages, 512 + 0x1f0); RED_BC1.copy(pages, 512 + 0x1f8); }));
+        assert.equal(shortened.textures[0].mipCount, 3); assert.equal(shortened.textures[0].length, 16); assert.equal(shortened.textures[0].previewMip, 0);
+        assert.equal(textureMip(shortened, 0, 0).data.length, 8); assert.equal(textureMip(shortened, 0, 1).data.length, 8);
+        assert.throws(() => textureMip(shortened, 0, 2), /mip level is not stored in the file/);
+    }],
     ['YTD rejects bad pointers, names, dictionary counts and decompression size mismatches', async () => {
         await assert.rejects(parseYtd(syntheticYtd(13, true, (pages) => pages.writeBigUInt64LE(0x70000000n, 0x40))), /pointer/);
         await assert.rejects(parseYtd(syntheticYtd(13, true, (pages) => pages.writeUInt16LE(2049, 0x38))), /count/);
