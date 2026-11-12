@@ -6,10 +6,16 @@ import { HoverLevels, verboseHoverClass, type HoverLevelSettings, type LevelHove
 import { luaQuote } from './luaQuote';
 import { registerManifestSnippetCompletions } from './manifestSnippets';
 import { ResourceControls } from './resourceControls';
+import type { Resource, ResourceIndex } from './resources';
 import { ReferenceBrowser } from './referenceBrowser';
+import { ReferenceCatalogs, withCatalogs, type CatalogData } from './referenceCatalogs';
 import { SETTINGS_SCHEMA_SCHEME, SettingsSchemaProvider, type RuleInfo } from './settingsSchema';
+import { registerSidebar } from './sidebar';
 import { SnippetBrowser } from './snippetBrowser';
 import { SqlHighlighting } from './sqlHighlighting';
+import { registerServerCfg } from './serverCfgProvider';
+import { registerTerminalSourceLinks } from './terminalLinks';
+import { showToolHub } from './toolHub';
 
 interface ServerStatus {
     files: number;
@@ -29,6 +35,9 @@ const CONFLICTING_EXTENSIONS = ['sumneko.lua', 'overextended.cfxlua-vscode', 'ih
 
 let client: LanguageClient | undefined;
 let statusItem: vscode.StatusBarItem;
+let languageStatus: vscode.LanguageStatusItem;
+let workspaceResources: ResourceIndex | undefined;
+let activeResource: () => Resource | undefined = () => undefined;
 let output: vscode.OutputChannel;
 let settingsSchema: SettingsSchemaProvider;
 let starting: Promise<void> | undefined;
@@ -42,7 +51,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     output = vscode.window.createOutputChannel('Qbox Lua');
     statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
     statusItem.command = 'qbxLua.showStatus';
-    context.subscriptions.push(output, statusItem);
+    statusItem.name = 'Qbox Lua';
+    languageStatus = vscode.languages.createLanguageStatusItem('qbxLua.status', LUA_DOCUMENTS);
+    languageStatus.name = 'Qbox Lua';
+    languageStatus.command = { command: 'qbxLua.showStatus', title: 'Tools' };
+    context.subscriptions.push(output, statusItem, languageStatus);
     // Registered before the server starts: a settings file that asks for these schemas is what activates the extension.
     settingsSchema = new SettingsSchemaProvider();
     context.subscriptions.push(settingsSchema, vscode.workspace.registerTextDocumentContentProvider(SETTINGS_SCHEMA_SCHEME, settingsSchema));
@@ -55,9 +68,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         context.subscriptions.push(vscode.languages.registerHoverProvider(LUA_DOCUMENTS, hoverLevels));
     }
     const resourceControls = new ResourceControls(context);
-    context.subscriptions.push(resourceControls);
+    context.subscriptions.push(resourceControls, registerSidebar(resourceControls.resourceIndex));
+    workspaceResources = resourceControls.resourceIndex;
+    activeResource = () => resourceControls.activeResource();
     let discovered = false;
-    void resourceControls.resourceIndex.ready.then(() => { discovered = true; }, () => { discovered = true; });
+    void resourceControls.resourceIndex.ready.then(() => { discovered = true; updateStatusVisibility(); }, () => { discovered = true; });
     const request = async <T>(method: string, params: unknown, token?: vscode.CancellationToken): Promise<T> => {
         await ensureStarted(context);
         if (!client || client.state !== State.Running) {
@@ -65,9 +80,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         }
         return token ? client.sendRequest<T>(method, params, token) : client.sendRequest<T>(method, params);
     };
-    const referenceBrowser = new ReferenceBrowser(context.extensionUri, request);
+    let catalogs: Promise<import('./referenceCatalogs.js').ReferenceCatalogs> | undefined;
+    const loadCatalogs = () => catalogs ??= (async () => {
+        const data = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(context.extensionUri, 'data', 'reference-catalogs.json'));
+        return new ReferenceCatalogs(JSON.parse(Buffer.from(data).toString('utf8')) as CatalogData);
+    })();
+    const referenceBrowser = new ReferenceBrowser(context.extensionUri, withCatalogs(request, loadCatalogs));
     const snippetBrowser = new SnippetBrowser(context.extensionUri, context.globalStorageUri, request);
     context.subscriptions.push(referenceBrowser, snippetBrowser, registerManifestSnippetCompletions(context.extensionUri, request));
+    const textureEdits = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<vscode.CustomDocument>>();
+    const textures = async (): Promise<import('./textureEditor.js').TextureProvider> => (await import('./textureEditor.js')).textureProvider(context.extensionUri, textureEdits);
     let resourceWizard: import('./resourceWizard.js').ResourceWizard | undefined;
     let wizardDisposed = false;
     context.subscriptions.push({ dispose: () => { wizardDisposed = true; resourceWizard?.dispose(); } });
@@ -85,6 +107,50 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
     let assets: import('./assetBrowser.js').AssetController | undefined;
     let extraToolsDisposed = false;
     context.subscriptions.push({ dispose: () => { extraToolsDisposed = true; utilities?.dispose(); assets?.dispose(); } });
+    // Each tool loads its code when a command first asks for it, or when VS Code restores its tab.
+    const utilitiesBrowser = async () => {
+        const { LuaUtilitiesBrowser } = await import('./luaUtilitiesBrowser.js');
+        return extraToolsDisposed ? undefined : utilities ??= new LuaUtilitiesBrowser(context.extensionUri);
+    };
+    const assetController = async () => {
+        const { AssetController } = await import('./assetBrowser.js');
+        return extraToolsDisposed ? undefined : assets ??= new AssetController(context.extensionUri, request, resourceControls.resourceIndex, context.workspaceState);
+    };
+    const detailsController = async () => {
+        const { ResourceDetailsController } = await import('./resourceDetailsBrowser.js');
+        return detailsDisposed ? undefined : resourceDetails ??= new ResourceDetailsController(context.extensionUri, request, resourceControls.resourceIndex, context.workspaceState);
+    };
+    const logController = async () => {
+        const { RuntimeLogController } = await import('./runtimeToolsBrowser.js');
+        return runtimeToolsDisposed ? undefined : runtimeLog ??= new RuntimeLogController(context.extensionUri, resourceControls.resourceIndex, context.workspaceState);
+    };
+    const healthController = async () => {
+        const { WorkspaceHealthController } = await import('./runtimeToolsBrowser.js');
+        return runtimeToolsDisposed ? undefined : workspaceHealth ??= new WorkspaceHealthController(context.extensionUri, request);
+    };
+    const nuiController = async () => {
+        const { NuiController } = await import('./nuiBrowser.js');
+        return nuiDisposed ? undefined : nuiPreview ??= new NuiController(context.extensionUri, context.workspaceState, request, resourceControls.resourceIndex);
+    };
+    let dataChecks: import('./dataChecks.js').DataChecks | undefined;
+    let dataChecksDisposed = false;
+    context.subscriptions.push({ dispose: () => { dataChecksDisposed = true; dataChecks?.dispose(); } });
+    const dataCheckController = async () => {
+        const { DataChecks } = await import('./dataChecks.js');
+        return dataChecksDisposed ? undefined : dataChecks ??= new DataChecks(context.extensionUri, resourceControls.resourceIndex);
+    };
+    /** Brings the tab of a tool back after a window reload. A tab that cannot be restored closes instead of staying blank. */
+    const restoresTab = (viewType: string, tool: () => Promise<{ restore(panel: vscode.WebviewPanel): unknown } | undefined> | { restore(panel: vscode.WebviewPanel): unknown }) =>
+        vscode.window.registerWebviewPanelSerializer(viewType, {
+            deserializeWebviewPanel: async (panel) => {
+                try {
+                    const controller = await tool();
+                    if (controller) { await controller.restore(panel); } else { panel.dispose(); }
+                } catch {
+                    panel.dispose();
+                }
+            },
+        });
 
     context.subscriptions.push(
         { dispose: () => { if (reindexTimer) { clearTimeout(reindexTimer); reindexTimer = undefined; } } },
@@ -92,8 +158,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         // The server watches Lua files by glob, so a resource folder that is dropped in, renamed or
         // removed only reaches its index through an explicit reindex. The initial discovery is not
         // a change: the server scans the same folders itself on startup.
-        resourceControls.resourceIndex.onDidChange(() => { if (discovered) { scheduleReindex('resource folders changed'); } }),
-        resourceControls.resourceIndex.onDidChangeFolders(() => { if (discovered) { scheduleReindex('a folder changed'); } }),
+        resourceControls.resourceIndex.onDidChange(() => {
+            updateStatusVisibility();
+            if (discovered) { scheduleReindex('resource folders changed'); }
+        }),
+        resourceControls.resourceIndex.onDidChangeFolders(() => { if (discovered) { scheduleReindex('a folder with Lua files changed'); } }),
         vscode.commands.registerCommand('qbxLua.restartServer', () => restart(context)),
         vscode.commands.registerCommand('qbxLua.reindex', reindex),
         vscode.commands.registerCommand('qbxLua.showSnippets', () => snippetBrowser.show()),
@@ -102,53 +171,109 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         vscode.commands.registerCommand('qbxLua.editPersonalSnippets', () => snippetBrowser.editPersonal()),
         vscode.commands.registerCommand('qbxLua.editWorkspaceSnippets', () => snippetBrowser.editWorkspace()),
         vscode.commands.registerCommand('qbxLua.openReference', () => referenceBrowser.show()),
-        vscode.commands.registerCommand('qbxLua.openLuaUtilities', async () => {
-            const { LuaUtilitiesBrowser } = await import('./luaUtilitiesBrowser.js');
-            if (extraToolsDisposed) { return; }
-            utilities ??= new LuaUtilitiesBrowser(context.extensionUri);
-            utilities.show();
+        vscode.commands.registerCommand('qbxLua.openLuaUtilities', async () => (await utilitiesBrowser())?.show()),
+        vscode.commands.registerCommand('qbxLua.openAssets', async (uri?: unknown) => (await assetController())?.show(await resourceTarget(uri))),
+        restoresTab('qbxLua.reference', () => referenceBrowser),
+        restoresTab('qbxLua.snippets', () => snippetBrowser),
+        restoresTab('qbxLua.luaUtilities', utilitiesBrowser),
+        restoresTab('qbxLua.assets', assetController),
+        restoresTab('qbxLua.resourceDetails', detailsController),
+        restoresTab('qbxLua.runtimeLog', logController),
+        restoresTab('qbxLua.workspaceHealth', healthController),
+        restoresTab('qbxLua.nuiPreview', nuiController),
+        registerTerminalSourceLinks(resourceControls.resourceIndex),
+        registerServerCfg(resourceControls.resourceIndex),
+        vscode.commands.registerCommand('qbxLua.checkResourceData', async (uri?: unknown) => (await dataCheckController())?.showChecks(uri)),
+        vscode.commands.registerCommand('qbxLua.showLocaleMatrix', async (uri?: unknown) => (await dataCheckController())?.showLocales(uri)),
+        restoresTab('qbxLua.dataChecks', async () => { const checks = await dataCheckController(); return checks && { restore: (panel: vscode.WebviewPanel) => checks.restoreChecks(panel) }; }),
+        restoresTab('qbxLua.localeMatrix', async () => { const checks = await dataCheckController(); return checks && { restore: (panel: vscode.WebviewPanel) => checks.restoreLocales(panel) }; }),
+        ...['qbxLua.mapViewer', 'qbxLua.mapViewerXml'].map((viewType) => vscode.window.registerCustomEditorProvider(viewType, {
+            openCustomDocument: (uri: vscode.Uri) => ({ uri, dispose: () => undefined }),
+            resolveCustomEditor: async (document: vscode.CustomDocument, panel: vscode.WebviewPanel) => {
+                const { MapEditor } = await import('./mapEditor.js');
+                await new MapEditor(context.extensionUri, document.uri, panel).open(viewType === 'qbxLua.mapViewerXml');
+            },
+        }, { supportsMultipleEditorsPerDocument: true })),
+        vscode.window.registerCustomEditorProvider('qbxLua.modelViewer', {
+            openCustomDocument: (uri: vscode.Uri) => ({ uri, dispose: () => undefined }),
+            resolveCustomEditor: async (document: vscode.CustomDocument, panel: vscode.WebviewPanel) => {
+                const { ModelEditor } = await import('./modelEditor.js');
+                await new ModelEditor(context.extensionUri, document.uri, panel).load();
+            },
+        }, { supportsMultipleEditorsPerDocument: true }),
+        vscode.commands.registerCommand('qbxLua.openMapViewer', async (uri?: unknown) => {
+            const target = uri instanceof vscode.Uri ? uri : await chooseAssetFile('Open Map Viewer', { 'Map data': ['ymap', 'ytyp', 'xml'] }, /\.(ymap|ytyp)(\.xml)?$/i);
+            if (target) {
+                const { openMapViewer } = await import('./mapEditor.js');
+                await openMapViewer(target);
+            }
         }),
-        vscode.commands.registerCommand('qbxLua.openAssets', async (uri?: unknown) => {
-            const { AssetController } = await import('./assetBrowser.js');
-            if (extraToolsDisposed) { return; }
-            assets ??= new AssetController(context.extensionUri, request, resourceControls.resourceIndex);
-            await assets.show(uri);
+        textureEdits,
+        vscode.window.registerCustomEditorProvider('qbxLua.textureViewer', {
+            onDidChangeCustomDocument: textureEdits.event,
+            openCustomDocument: async (uri: vscode.Uri, open: vscode.CustomDocumentOpenContext) => (await textures()).openCustomDocument(uri, open),
+            resolveCustomEditor: async (document: vscode.CustomDocument, panel: vscode.WebviewPanel) => (await textures()).resolveCustomEditor(document, panel),
+            saveCustomDocument: async (document: vscode.CustomDocument) => (await textures()).saveCustomDocument(document),
+            saveCustomDocumentAs: async (document: vscode.CustomDocument, destination: vscode.Uri) => (await textures()).saveCustomDocumentAs(document, destination),
+            revertCustomDocument: async (document: vscode.CustomDocument) => (await textures()).revertCustomDocument(document),
+            backupCustomDocument: async (document: vscode.CustomDocument, backup: vscode.CustomDocumentBackupContext) => (await textures()).backupCustomDocument(document, backup),
+        }, { supportsMultipleEditorsPerDocument: true }),
+        vscode.commands.registerCommand('qbxLua.newTextureDictionary', async (target?: unknown, images?: unknown) => (await textures()).create(target, images)),
+        vscode.commands.registerCommand('qbxLua.textures.edit', async (request?: unknown) => (await textures()).edit(request)),
+        vscode.commands.registerCommand('qbxLua.openTextureViewer', async (uri?: unknown) => {
+            const target = uri instanceof vscode.Uri ? uri : await chooseAssetFile('Open Texture Viewer', { Textures: ['ytd', 'dds'] }, /\.(ytd|dds)$/i);
+            if (target) {
+                await vscode.commands.executeCommand('vscode.openWith', target, 'qbxLua.textureViewer');
+            }
+        }),
+        vscode.window.registerCustomEditorProvider('qbxLua.animViewer', {
+            openCustomDocument: (uri: vscode.Uri) => ({ uri, dispose: () => undefined }),
+            resolveCustomEditor: async (document: vscode.CustomDocument, panel: vscode.WebviewPanel) => {
+                const { AnimEditor } = await import('./animEditor.js');
+                await new AnimEditor(context.extensionUri, document.uri, panel).load();
+            },
+        }, { supportsMultipleEditorsPerDocument: true }),
+        vscode.commands.registerCommand('qbxLua.openAnimViewer', async (uri?: unknown) => {
+            const target = uri instanceof vscode.Uri ? uri : await chooseAssetFile('Open Animation Dictionary', { 'Animation dictionaries': ['ycd'] }, /\.ycd$/i);
+            if (target) {
+                await vscode.commands.executeCommand('vscode.openWith', target, 'qbxLua.animViewer');
+            }
+        }),
+        vscode.commands.registerCommand('qbxLua.openModelViewer', async (uri?: unknown) => {
+            const target = uri instanceof vscode.Uri ? uri : await chooseAssetFile('Open Model Viewer', { 'Models and collision': ['ydr', 'ydd', 'yft', 'ybn'] }, /\.(ydr|ydd|yft|ybn)$/i);
+            if (target) {
+                await vscode.commands.executeCommand('vscode.openWith', target, 'qbxLua.modelViewer');
+            }
+        }),
+        vscode.commands.registerCommand('qbxLua.addAssetNameList', async () => {
+            const picked = await vscode.window.showOpenDialog({ title: 'Add Asset Name List', canSelectMany: true, filters: { 'Name lists': ['txt', 'ini', 'json', 'csv'], 'All files': ['*'] } });
+            if (!picked?.length) {
+                return;
+            }
+            const config = vscode.workspace.getConfiguration(CONFIG_SECTION), current = config.get<string[]>('assets.nameLists', []);
+            await config.update('assets.nameLists', [...new Set([...current, ...picked.map((uri) => uri.fsPath)])], vscode.ConfigurationTarget.Global);
+            void vscode.window.showInformationMessage(`Asset viewers now resolve hashes with ${picked.length === 1 ? 'that name list' : `those ${picked.length} name lists`}.`);
         }),
         vscode.commands.registerCommand('qbxLua.assistantSetup', async () => {
             await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.joinPath(context.extensionUri, 'docs', 'assistant-tools.md'));
         }),
+        vscode.commands.registerCommand('qbxLua.copyMcpConfiguration', async () => {
+            const { copyMcpConfiguration } = await import('./assistantSetup.js');
+            await copyMcpConfiguration(context);
+        }),
+        vscode.commands.registerCommand('qbxLua.resetSqlFunctions', resetSqlFunctions),
         vscode.commands.registerCommand('qbxLua.resources.create', async (uri?: unknown) => {
             const { ResourceWizard } = await import('./resourceWizard.js');
             if (wizardDisposed) { return; }
             resourceWizard ??= new ResourceWizard(() => luaQuote(request));
             await resourceWizard.show(uri);
         }),
-        vscode.commands.registerCommand('qbxLua.resources.details', async (uri?: unknown) => {
-            const { ResourceDetailsController } = await import('./resourceDetailsBrowser.js');
-            if (detailsDisposed) { return; }
-            resourceDetails ??= new ResourceDetailsController(context.extensionUri, request, resourceControls.resourceIndex);
-            await resourceDetails.show(uri);
-        }),
+        vscode.commands.registerCommand('qbxLua.resources.details', async (uri?: unknown) => (await detailsController())?.show(await resourceTarget(uri))),
         vscode.commands.registerCommand('qbxLua.showStatus', showStatus),
-        vscode.commands.registerCommand('qbxLua.openRuntimeLog', async (uri?: unknown) => {
-            const { RuntimeLogController } = await import('./runtimeToolsBrowser.js');
-            if (runtimeToolsDisposed) { return; }
-            runtimeLog ??= new RuntimeLogController(context.extensionUri, resourceControls.resourceIndex);
-            await runtimeLog.show(uri);
-        }),
-        vscode.commands.registerCommand('qbxLua.workspaceHealth', async () => {
-            const { WorkspaceHealthController } = await import('./runtimeToolsBrowser.js');
-            if (runtimeToolsDisposed) { return; }
-            workspaceHealth ??= new WorkspaceHealthController(context.extensionUri, request);
-            await workspaceHealth.show();
-        }),
+        vscode.commands.registerCommand('qbxLua.openRuntimeLog', async (uri?: unknown) => (await logController())?.show(uri)),
+        vscode.commands.registerCommand('qbxLua.workspaceHealth', async () => (await healthController())?.show()),
         vscode.commands.registerCommand('qbxLua.showOutput', () => output.show()),
-        vscode.commands.registerCommand('qbxLua.openNuiPreview', async (uri?: unknown) => {
-            const { NuiController } = await import('./nuiBrowser.js');
-            if (nuiDisposed) { return; }
-            nuiPreview ??= new NuiController(context.extensionUri, context.workspaceState, request, resourceControls.resourceIndex);
-            await nuiPreview.show(uri);
-        }),
+        vscode.commands.registerCommand('qbxLua.openNuiPreview', async (uri?: unknown) => (await nuiController())?.show(await resourceTarget(uri))),
         vscode.workspace.onDidChangeConfiguration((event) => {
             const needsRestart = event.affectsConfiguration(`${CONFIG_SECTION}.server.path`) || event.affectsConfiguration(`${CONFIG_SECTION}.library`);
             if (needsRestart && starting) {
@@ -159,6 +284,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
             }
             if (event.affectsConfiguration(`${CONFIG_SECTION}.sqlHighlighting`)) {
                 void sqlHighlighting?.sync().then(refreshSqlFunctions);
+            }
+        }),
+        // Trust lifts the restriction on `server.path` and `library`, which the server reads when it starts.
+        vscode.workspace.onDidGrantWorkspaceTrust(() => {
+            if (starting) {
+                void restart(context);
             }
         }),
         vscode.window.onDidChangeActiveTextEditor(() => {
@@ -177,8 +308,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
         vscode.workspace.onDidChangeTextDocument(suggestAnnotationTags),
     );
 
+    // Not awaited: the server indexes the workspace while it starts, and commands, views and the
+    // API of this extension must not wait for that.
     if (await hasLuaWork()) {
-        await ensureStarted(context);
+        void ensureStarted(context);
     } else {
         context.subscriptions.push(
             vscode.workspace.onDidOpenTextDocument((document) => {
@@ -193,6 +326,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<import
             }),
         );
     }
+    void import('./assistantSetup.js').then(({ refreshMcpLauncher }) => refreshMcpLauncher(context)).catch(() => undefined);
     const { registerAssistantTools } = await import('./assistantVscode.js');
     return registerAssistantTools(context, request);
 }
@@ -211,6 +345,28 @@ function suggestAnnotationTags(event: vscode.TextDocumentChangeEvent): void {
     if (/^[ \t]*---@[A-Za-z]$/.test(typed) && vscode.window.activeTextEditor?.document === event.document) {
         void vscode.commands.executeCommand('editor.action.triggerSuggest');
     }
+}
+
+/**
+ * What a resource tool opens for: the folder of the resource `uri` names or lies in, else that of
+ * the file being edited. Without either the tool asks.
+ */
+async function resourceTarget(uri: unknown): Promise<unknown> {
+    if (uri instanceof vscode.Uri) {
+        return (await workspaceResources?.owner(uri))?.folder ?? uri;
+    }
+    return uri ?? activeResource()?.folder;
+}
+
+/** The active file when it matches `pattern`, otherwise a file the user picks. */
+async function chooseAssetFile(title: string, filters: Record<string, string[]>, pattern: RegExp): Promise<vscode.Uri | undefined> {
+    const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+    const active = input instanceof vscode.TabInputText || input instanceof vscode.TabInputCustom ? input.uri : undefined;
+    if (active && pattern.test(active.path)) {
+        return active;
+    }
+    const picked = await vscode.window.showOpenDialog({ title, filters, canSelectMany: false, defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri });
+    return picked?.[0];
 }
 
 export async function deactivate(): Promise<void> {
@@ -353,11 +509,20 @@ function ensureStarted(context: vscode.ExtensionContext): Promise<void> {
     return starting;
 }
 
-async function restart(context: vscode.ExtensionContext): Promise<void> {
-    await client?.stop().catch(() => undefined);
-    client = undefined;
-    starting = start(context);
-    await starting;
+/**
+ * Restarts follow the start or restart before them: a client that is still starting cannot be
+ * stopped, and starting another beside it would leave two servers running.
+ */
+function restart(context: vscode.ExtensionContext): Promise<void> {
+    const previous = starting;
+    starting = (async () => {
+        await previous?.catch(() => undefined);
+        const running = client;
+        client = undefined;
+        await running?.stop().catch(() => undefined);
+        await start(context);
+    })();
+    return starting;
 }
 
 async function fetchStatus(): Promise<ServerStatus | undefined> {
@@ -375,12 +540,29 @@ async function loadRules(): Promise<void> {
 
 /** Hands the functions that take SQL to the highlighting, unless it is off. A server without `qbx/sqlFunctions` leaves the highlighting as it is. */
 async function refreshSqlFunctions(): Promise<void> {
-    if (!client || client.state !== State.Running || !sqlHighlighting?.enabled()) {
+    // The grammar is shared by every window, so the code of a workspace that is not trusted adds nothing to it.
+    if (!vscode.workspace.isTrusted || !sqlHighlighting?.enabled()) {
         return;
     }
+    const functions = await sqlFunctions();
+    if (functions) {
+        await sqlHighlighting.sync(functions);
+    }
+}
+
+async function sqlFunctions(): Promise<string[] | undefined> {
+    if (!client || client.state !== State.Running) {
+        return undefined;
+    }
     const result = await client.sendRequest<{ functions?: unknown }>('qbx/sqlFunctions').catch(() => undefined);
-    if (Array.isArray(result?.functions)) {
-        await sqlHighlighting.sync(result.functions.filter((name): name is string => typeof name === 'string'));
+    return Array.isArray(result?.functions) ? result.functions.filter((name): name is string => typeof name === 'string') : undefined;
+}
+
+/** Drops the query functions that other workspaces added to the shared SQL grammar. */
+async function resetSqlFunctions(): Promise<void> {
+    const functions = vscode.workspace.isTrusted ? await sqlFunctions() : [];
+    if (!(await sqlHighlighting?.reset(functions ?? []))) {
+        void vscode.window.showInformationMessage('SQL highlighting already lists only the query functions of this workspace.');
     }
 }
 
@@ -397,13 +579,18 @@ function scheduleSqlRefresh(): void {
 
 function setStatus(text: string, tooltip: string): void {
     statusItem.text = text;
-    statusItem.tooltip = tooltip;
+    statusItem.tooltip = `${tooltip}\nClick for the FiveM tools.`;
+    languageStatus.text = text.replace(/^\$\([^)]*\)\s*/, '');
+    languageStatus.detail = tooltip.split('\n')[0];
+    languageStatus.busy = text.includes('$(sync~spin)');
+    languageStatus.severity = text.includes('$(error)') ? vscode.LanguageStatusSeverity.Error : vscode.LanguageStatusSeverity.Information;
     updateStatusVisibility();
 }
 
+/** Shown while Lua is edited, on errors, and in any editor of a workspace with resources, where it opens the tools. */
 function updateStatusVisibility(): void {
     const isLua = vscode.window.activeTextEditor?.document.languageId === 'lua';
-    if (isLua || statusItem.text.includes('$(error)')) {
+    if (isLua || statusItem.text.includes('$(error)') || (statusItem.text && (workspaceResources?.entries.length ?? 0) > 0)) {
         statusItem.show();
     } else {
         statusItem.hide();
@@ -484,43 +671,38 @@ async function reindex(): Promise<void> {
         return;
     }
     setStatus('$(sync~spin) Qbox Lua', 'Indexing workspace…');
-    const result = await client.sendRequest<{ files: number; resources: number; millis: number }>('qbx/reindex');
-    await refreshStatus();
+    let result: { files: number; resources: number; millis: number };
+    try {
+        result = await client.sendRequest<{ files: number; resources: number; millis: number }>('qbx/reindex');
+    } finally {
+        await refreshStatus();
+    }
     void vscode.window.showInformationMessage(
         `Qbox Lua indexed ${result.files} files in ${result.resources} resources (${result.millis} ms).`,
     );
 }
 
+/** The status of the index above every tool, with the actions for the resource being edited first. */
 async function showStatus(): Promise<void> {
     const status = await fetchStatus().catch(() => undefined);
-    if (!status) {
-        const choice = await vscode.window.showWarningMessage('The Qbox Lua language server is not running.', 'Restart', 'Show Output');
-        if (choice === 'Restart') {
-            await vscode.commands.executeCommand('qbxLua.restartServer');
-        } else if (choice === 'Show Output') {
-            output.show();
-        }
-        return;
-    }
-    const choice = await vscode.window.showInformationMessage(
-        `Qbox Lua: ${status.files} files in ${status.resources} resources indexed, ${status.openDocuments} open, ${status.natives} natives.`,
-        'Reindex',
-        'Show Output',
-    );
-    if (choice === 'Reindex') {
-        await reindex();
-    } else if (choice === 'Show Output') {
-        output.show();
-    }
+    const summary = status
+        ? `${status.files} files in ${status.resources} resources indexed, ${status.openDocuments} open, ${status.natives} natives`
+        : starting ? 'The language server is not running. Restart it from this list.' : 'The language server starts with the first Lua file or resource.';
+    await showToolHub(summary, activeResource());
 }
 
-function warnAboutOtherLuaExtensions(): void {
+async function warnAboutOtherLuaExtensions(): Promise<void> {
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     if (!config.get<boolean>('warnAboutOtherLuaExtensions', true)) {
         return;
     }
     const active = CONFLICTING_EXTENSIONS.filter((id) => vscode.extensions.getExtension(id) !== undefined);
     if (active.length === 0) {
+        return;
+    }
+    // Without a resource this may be another kind of Lua project, where those extensions are the right ones.
+    await workspaceResources?.ready.catch(() => undefined);
+    if (!workspaceResources?.entries.length) {
         return;
     }
     void vscode.window

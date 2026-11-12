@@ -1,7 +1,7 @@
 {
   "name": "qbx-lua",
   "displayName": "Qbox Lua - CfxLua & FiveM",
-  "description": "CfxLua language support for FiveM resource development: native completion, Lua diagnostics, formatting, navigation and client/server checks.",
+  "description": "CfxLua language support and FiveM tools: completion, diagnostics and formatting for Lua, resource control, an NUI preview, viewers for maps, models and animations, and a texture editor.",
   "version": "1.2.1",
   "publisher": "qbox",
   "license": "GPL-3.0-or-later",
@@ -20,6 +20,7 @@
   "categories": [
     "Programming Languages",
     "Linters",
+    "Formatters",
     "Snippets"
   ],
   "keywords": [
@@ -35,13 +36,45 @@
     "qbox",
     "qbx",
     "ox_lib",
-    "natives"
+    "natives",
+    "gta v",
+    "mlo",
+    "ymap",
+    "ytyp",
+    "ydr",
+    "ybn",
+    "nui",
+    "rcon",
+    "esx",
+    "qbcore",
+    "ycd",
+    "txadmin",
+    "ytd",
+    "mcp",
+    "server.cfg",
+    "vehicles.meta"
   ],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%capabilities.untrustedWorkspaces.description%",
+      "restrictedConfigurations": [
+        "qbxLua.server.path",
+        "qbxLua.library"
+      ]
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "%capabilities.virtualWorkspaces.description%"
+    }
+  },
   "activationEvents": [
     "onLanguage:lua",
     "workspaceContains:**/fxmanifest.lua",
     "workspaceContains:**/__resource.lua",
+    "workspaceContains:server.cfg",
+    "onLanguage:fivem-cfg",
     "onLanguageModelTool:qbx_list_resources",
     "onLanguageModelTool:qbx_resource_details",
     "onLanguageModelTool:qbx_workspace_health",
@@ -49,7 +82,17 @@
     "onLanguageModelTool:qbx_symbol_references",
     "onLanguageModelTool:qbx_search_reference",
     "onLanguageModelTool:qbx_reference_detail",
-    "onFileSystem:qbx-lua"
+    "onFileSystem:qbx-lua",
+    "onWebviewPanel:qbxLua.reference",
+    "onWebviewPanel:qbxLua.snippets",
+    "onWebviewPanel:qbxLua.luaUtilities",
+    "onWebviewPanel:qbxLua.assets",
+    "onWebviewPanel:qbxLua.resourceDetails",
+    "onWebviewPanel:qbxLua.runtimeLog",
+    "onWebviewPanel:qbxLua.workspaceHealth",
+    "onWebviewPanel:qbxLua.nuiPreview",
+    "onWebviewPanel:qbxLua.dataChecks",
+    "onWebviewPanel:qbxLua.localeMatrix"
   ],
   "contributes": {
     "configuration": {
@@ -59,7 +102,7 @@
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "markdownDescription": "Absolute path to a `qbx-lua-ls` binary. Leave empty to use the one bundled with the extension."
+          "markdownDescription": "%config.server.path.description%"
         },
         "qbxLua.library": {
           "type": "array",
@@ -67,25 +110,25 @@
             "type": "string"
           },
           "default": [],
-          "scope": "resource",
-          "markdownDescription": "Extra folders to index for definitions, for example a `resources` folder that contains `ox_lib` and `qbx_core` when you only open a single resource. Resources referenced from `fxmanifest.lua` that sit next to the open one are found automatically."
+          "scope": "window",
+          "markdownDescription": "%config.library.description%"
         },
         "qbxLua.diagnostics.enable": {
           "type": "boolean",
           "default": true,
-          "scope": "resource",
-          "description": "Show Qbox Lua diagnostics while editing."
+          "scope": "window",
+          "description": "%config.diagnostics.enable.description%"
         },
         "qbxLua.diagnostics.workspace": {
           "type": "boolean",
           "default": true,
-          "scope": "resource",
-          "description": "Report problems for every Lua file in the workspace in the Problems panel, not only for the files that are open."
+          "scope": "window",
+          "description": "%config.diagnostics.workspace.description%"
         },
         "qbxLua.diagnostics.rules": {
           "type": "object",
           "default": {},
-          "scope": "resource",
+          "scope": "window",
           "additionalProperties": {
             "type": "string",
             "enum": [
@@ -96,31 +139,31 @@
               "error"
             ]
           },
-          "markdownDescription": "Rule levels, e.g. `{ \"unused-argument\": \"off\", \"fivem/citizen-prefix\": \"warning\" }`. The levels a `qbxlint.toml` in the workspace sets take precedence, so the editor and CI stay in sync."
+          "markdownDescription": "%config.diagnostics.rules.description%"
         },
         "qbxLua.diagnostics.strict": {
           "type": "boolean",
           "default": false,
-          "scope": "resource",
-          "markdownDescription": "Also report what TypeScript's strict mode does beyond lua-language-server: `need-check-nil` for arithmetic, concatenation, `#` and comparisons with a value that may be `nil`, the `nil` of fields, optional callback parameters and other functions in `param-type-mismatch`, `field = nil` for fields that do not allow it, the fields of shapes in `missing-fields`, and fields of tables built by table constructors in `inject-field` and `undefined-field`. A `strict` that a `qbxlint.toml` in the workspace sets takes precedence."
+          "scope": "window",
+          "markdownDescription": "%config.diagnostics.strict.description%"
         },
         "qbxLua.inlayHints.enable": {
           "type": "boolean",
           "default": true,
-          "scope": "resource",
-          "description": "Show parameter names next to literal arguments."
+          "scope": "window",
+          "description": "%config.inlayHints.enable.description%"
         },
         "qbxLua.semanticTokens.enable": {
           "type": "boolean",
           "default": true,
-          "scope": "resource",
-          "description": "Colour natives, globals, parameters and methods semantically."
+          "scope": "window",
+          "description": "%config.semanticTokens.enable.description%"
         },
         "qbxLua.sqlHighlighting.enable": {
           "type": "boolean",
           "default": true,
           "scope": "application",
-          "markdownDescription": "Highlight SQL in the queries of database calls such as `MySQL.query.await(...)`, in calls of functions whose first parameter has the `sql` type, and in strings below `---@language sql`. Takes effect after the window reloads, for every window."
+          "markdownDescription": "%config.sqlHighlighting.enable.description%"
         },
         "qbxLua.hover.verbosity": {
           "type": "integer",
@@ -128,19 +171,42 @@
           "minimum": 0,
           "maximum": 5,
           "scope": "resource",
-          "markdownDescription": "How much a hover shows when it opens: `0` the type alone, `1` also the fields of tables and the aliases they use, and each level up to `5` more fields and one more step of the tables and classes they hold. The `+` and `-` buttons of a hover show more or less of that hover."
+          "markdownDescription": "%config.hover.verbosity.description%"
         },
         "qbxLua.hover.rememberVerbosity": {
           "type": "boolean",
           "default": false,
           "scope": "window",
-          "markdownDescription": "Open hovers at the level last chosen with the `+` and `-` buttons of a hover instead of `#qbxLua.hover.verbosity#`, also after a restart. Changing either setting starts again from `#qbxLua.hover.verbosity#`."
+          "markdownDescription": "%config.hover.rememberVerbosity.description%"
+        },
+        "qbxLua.mapViewer.xmlFiles": {
+          "type": "string",
+          "enum": [
+            "text",
+            "viewer"
+          ],
+          "enumDescriptions": [
+            "%config.mapViewer.xmlFiles.enum.text%",
+            "%config.mapViewer.xmlFiles.enum.viewer%"
+          ],
+          "default": "text",
+          "scope": "resource",
+          "markdownDescription": "%config.mapViewer.xmlFiles.description%"
+        },
+        "qbxLua.assets.nameLists": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine",
+          "markdownDescription": "%config.assets.nameLists.description%"
         },
         "qbxLua.warnAboutOtherLuaExtensions": {
           "type": "boolean",
           "default": true,
           "scope": "window",
-          "description": "Warn when another Lua language server extension is active, which leads to duplicate diagnostics and completions."
+          "description": "%config.warnAboutOtherLuaExtensions.description%"
         },
         "qbxLua.trace.server": {
           "type": "string",
@@ -151,143 +217,222 @@
           ],
           "default": "off",
           "scope": "window",
-          "description": "Trace the communication between VS Code and the language server."
+          "description": "%config.trace.server.description%"
         }
       }
     },
     "commands": [
       {
         "command": "qbxLua.restartServer",
-        "title": "Restart Language Server",
+        "title": "%command.restartServer.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.showSnippets",
-        "title": "Show Snippets",
+        "title": "%command.showSnippets.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.openSnippets",
-        "title": "Open Snippet Browser",
+        "title": "%command.openSnippets.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.saveSelectionAsSnippet",
-        "title": "Save Selection as Snippet",
+        "title": "%command.saveSelectionAsSnippet.title%",
         "category": "Qbox Lua",
         "enablement": "editorLangId == lua && editorHasSelection"
       },
       {
         "command": "qbxLua.editPersonalSnippets",
-        "title": "Edit Personal Snippets",
+        "title": "%command.editPersonalSnippets.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.editWorkspaceSnippets",
-        "title": "Edit Workspace Snippets",
+        "title": "%command.editWorkspaceSnippets.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.openReference",
-        "title": "Open FiveM Reference",
+        "title": "%command.openReference.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.reindex",
-        "title": "Reindex Workspace",
-        "category": "Qbox Lua"
+        "title": "%command.reindex.title%",
+        "category": "Qbox Lua",
+        "icon": "$(refresh)"
       },
       {
         "command": "qbxLua.showStatus",
-        "title": "Show Status",
+        "title": "%command.showStatus.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.showOutput",
-        "title": "Show Output",
+        "title": "%command.showOutput.title%",
+        "category": "Qbox Lua"
+      },
+      {
+        "command": "qbxLua.resetSqlFunctions",
+        "title": "%command.resetSqlFunctions.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.resources.create",
-        "title": "Create Resource",
-        "category": "FiveM"
+        "title": "%command.resources.create.title%",
+        "category": "FiveM",
+        "icon": "$(add)"
       },
       {
         "command": "qbxLua.resources.start",
-        "title": "Start Resource",
+        "title": "%command.resources.start.title%",
         "category": "FiveM",
-        "enablement": "isWorkspaceTrusted"
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(play)"
       },
       {
         "command": "qbxLua.resources.stop",
-        "title": "Stop Resource",
+        "title": "%command.resources.stop.title%",
         "category": "FiveM",
-        "enablement": "isWorkspaceTrusted"
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(debug-stop)"
       },
       {
         "command": "qbxLua.resources.restart",
-        "title": "Restart Resource",
+        "title": "%command.resources.restart.title%",
         "category": "FiveM",
-        "enablement": "isWorkspaceTrusted"
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "qbxLua.resources.ensure",
+        "title": "%command.resources.ensure.title%",
+        "category": "FiveM",
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "qbxLua.resources.refresh",
+        "title": "%command.resources.refresh.title%",
+        "category": "FiveM",
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(sync)"
       },
       {
         "command": "qbxLua.openNuiPreview",
-        "title": "Open NUI Preview",
+        "title": "%command.openNuiPreview.title%",
         "category": "FiveM",
-        "enablement": "isWorkspaceTrusted"
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(browser)"
       },
       {
         "command": "qbxLua.openRuntimeLog",
-        "title": "Open Runtime Log",
+        "title": "%command.openRuntimeLog.title%",
         "category": "FiveM"
       },
       {
         "command": "qbxLua.workspaceHealth",
-        "title": "Workspace Health",
+        "title": "%command.workspaceHealth.title%",
         "category": "FiveM"
+      },
+      {
+        "command": "qbxLua.checkResourceData",
+        "title": "%command.checkResourceData.title%",
+        "category": "FiveM",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "qbxLua.showLocaleMatrix",
+        "title": "%command.showLocaleMatrix.title%",
+        "category": "FiveM",
+        "icon": "$(globe)"
       },
       {
         "command": "qbxLua.resources.details",
-        "title": "Resource Details",
-        "category": "FiveM"
+        "title": "%command.resources.details.title%",
+        "category": "FiveM",
+        "icon": "$(info)"
       },
       {
         "command": "qbxLua.resources.openManifest",
-        "title": "Open Manifest",
+        "title": "%command.resources.openManifest.title%",
         "category": "FiveM"
       },
       {
         "command": "qbxLua.resources.configureConnection",
-        "title": "Configure Resource Connection",
+        "title": "%command.resources.configureConnection.title%",
         "category": "FiveM",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "qbxLua.resources.testConnection",
-        "title": "Test Resource Connection",
+        "title": "%command.resources.testConnection.title%",
         "category": "FiveM",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "qbxLua.resources.forgetConnection",
-        "title": "Forget Resource Connection",
+        "title": "%command.resources.forgetConnection.title%",
         "category": "FiveM",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "qbxLua.openLuaUtilities",
-        "title": "Open Lua Utilities",
+        "title": "%command.openLuaUtilities.title%",
         "category": "Qbox Lua"
       },
       {
         "command": "qbxLua.openAssets",
-        "title": "Browse Resource Assets",
-        "category": "FiveM"
+        "title": "%command.openAssets.title%",
+        "category": "FiveM",
+        "icon": "$(file-media)"
       },
       {
         "command": "qbxLua.assistantSetup",
-        "title": "Show Coding Assistant Setup",
+        "title": "%command.assistantSetup.title%",
         "category": "FiveM"
+      },
+      {
+        "command": "qbxLua.copyMcpConfiguration",
+        "title": "%command.copyMcpConfiguration.title%",
+        "category": "FiveM"
+      },
+      {
+        "command": "qbxLua.openMapViewer",
+        "title": "%command.openMapViewer.title%",
+        "category": "FiveM",
+        "icon": "$(map)"
+      },
+      {
+        "command": "qbxLua.addAssetNameList",
+        "title": "%command.addAssetNameList.title%",
+        "category": "FiveM"
+      },
+      {
+        "command": "qbxLua.openModelViewer",
+        "title": "%command.openModelViewer.title%",
+        "category": "FiveM",
+        "icon": "$(symbol-misc)"
+      },
+      {
+        "command": "qbxLua.openAnimViewer",
+        "title": "%command.openAnimViewer.title%",
+        "category": "FiveM",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "qbxLua.openTextureViewer",
+        "title": "%command.openTextureViewer.title%",
+        "category": "FiveM",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "qbxLua.newTextureDictionary",
+        "title": "%command.newTextureDictionary.title%",
+        "category": "FiveM",
+        "icon": "$(new-file)"
       }
     ],
     "submenus": [
@@ -307,6 +452,17 @@
           "command": "qbxLua.openLuaUtilities",
           "when": "editorLangId == lua || editorLangId == json || editorLangId == jsonc",
           "group": "1_modification@51"
+        },
+        {
+          "submenu": "qbxLua.resources",
+          "when": "resourceScheme == file && qbxLua.activeResource",
+          "group": "z_commands@90"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "qbxLua.showSnippets",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -317,8 +473,13 @@
         },
         {
           "submenu": "qbxLua.resources",
-          "when": "resourceScheme == file && explorerResourceIsFolder && resourcePath in qbxLua.resourceFolders",
+          "when": "resourceScheme == file && (explorerResourceIsFolder && resourcePath in qbxLua.resourceFolders || resourceFilename =~ /^(fxmanifest|__resource)\\.lua$/)",
           "group": "navigation@50"
+        },
+        {
+          "command": "qbxLua.openMapViewer",
+          "when": "resourceScheme == file && (resourceExtname == .ymap || resourceExtname == .ytyp || resourceFilename =~ /\\.(ymap|ytyp)\\.xml$/i)",
+          "group": "navigation@51"
         }
       ],
       "qbxLua.resources": [
@@ -338,6 +499,11 @@
           "group": "1_runtime@3"
         },
         {
+          "command": "qbxLua.resources.ensure",
+          "when": "isWorkspaceTrusted",
+          "group": "1_runtime@4"
+        },
+        {
           "command": "qbxLua.resources.openManifest",
           "group": "2_navigation@1"
         },
@@ -353,15 +519,140 @@
         {
           "command": "qbxLua.openAssets",
           "group": "2_navigation@4"
+        },
+        {
+          "command": "qbxLua.checkResourceData",
+          "group": "3_checks@1"
+        },
+        {
+          "command": "qbxLua.showLocaleMatrix",
+          "group": "3_checks@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "qbxLua.resources.restart",
+          "when": "resourceScheme == file && qbxLua.activeResource && qbxLua.resources.connected && isWorkspaceTrusted && !isInDiffEditor",
+          "group": "navigation@40"
+        },
+        {
+          "command": "qbxLua.openMapViewer",
+          "when": "resourceScheme == file && (resourceExtname == .ymap || resourceExtname == .ytyp || resourceFilename =~ /\\.(ymap|ytyp)\\.xml$/i) && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation@50"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "submenu": "qbxLua.resources",
+          "when": "resourceScheme == file && qbxLua.activeResource",
+          "group": "9_fivem@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "qbxLua.resources.create",
+          "when": "view == qbxLua.resourcesView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "qbxLua.reindex",
+          "when": "view == qbxLua.resourcesView",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "qbxLua.resources.restart",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "inline@1"
+        },
+        {
+          "command": "qbxLua.resources.start",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "inline@2"
+        },
+        {
+          "command": "qbxLua.resources.stop",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "inline@3"
+        },
+        {
+          "command": "qbxLua.resources.start",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "1_runtime@1"
+        },
+        {
+          "command": "qbxLua.resources.stop",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "1_runtime@2"
+        },
+        {
+          "command": "qbxLua.resources.restart",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "1_runtime@3"
+        },
+        {
+          "command": "qbxLua.resources.ensure",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "1_runtime@4"
+        },
+        {
+          "command": "qbxLua.resources.openManifest",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource",
+          "group": "2_navigation@1"
+        },
+        {
+          "command": "qbxLua.resources.details",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource",
+          "group": "2_navigation@2"
+        },
+        {
+          "command": "qbxLua.openNuiPreview",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource && isWorkspaceTrusted",
+          "group": "2_navigation@3"
+        },
+        {
+          "command": "qbxLua.openAssets",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource",
+          "group": "2_navigation@4"
+        },
+        {
+          "command": "qbxLua.checkResourceData",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource",
+          "group": "3_checks@1"
+        },
+        {
+          "command": "qbxLua.showLocaleMatrix",
+          "when": "view == qbxLua.resourcesView && viewItem == qbxLua.resource",
+          "group": "3_checks@2"
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "qbxLua.resources.restart",
+        "key": "ctrl+alt+r",
+        "mac": "ctrl+cmd+r",
+        "when": "qbxLua.hasResources && isWorkspaceTrusted && !terminalFocus"
+      }
+    ],
     "languages": [
       {
         "id": "jsonc",
         "filenames": [
           "qbx-lua-snippets.json"
         ]
+      },
+      {
+        "id": "fivem-cfg",
+        "aliases": [
+          "FiveM Server Config",
+          "server.cfg"
+        ],
+        "filenames": [
+          "server.cfg"
+        ],
+        "configuration": "./syntaxes/fivem-cfg.language-configuration.json"
       }
     ],
     "grammars": [
@@ -412,6 +703,11 @@
         "embeddedLanguages": {
           "meta.embedded.block.sql": "sql"
         }
+      },
+      {
+        "language": "fivem-cfg",
+        "scopeName": "source.fivem-cfg",
+        "path": "./syntaxes/fivem-cfg.tmLanguage.json"
       }
     ],
     "jsonValidation": [
@@ -714,6 +1010,170 @@
           "additionalProperties": false
         }
       }
+    ],
+    "customEditors": [
+      {
+        "viewType": "qbxLua.mapViewer",
+        "displayName": "%customEditor.mapViewer.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.ymap"
+          },
+          {
+            "filenamePattern": "*.ytyp"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "qbxLua.mapViewerXml",
+        "displayName": "%customEditor.mapViewerXml.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.ymap.xml"
+          },
+          {
+            "filenamePattern": "*.ytyp.xml"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "qbxLua.modelViewer",
+        "displayName": "%customEditor.modelViewer.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.ydr"
+          },
+          {
+            "filenamePattern": "*.ydd"
+          },
+          {
+            "filenamePattern": "*.yft"
+          },
+          {
+            "filenamePattern": "*.ybn"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "qbxLua.animViewer",
+        "displayName": "%customEditor.animViewer.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.ycd"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "qbxLua.textureViewer",
+        "displayName": "%customEditor.textureViewer.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.ytd"
+          },
+          {
+            "filenamePattern": "*.dds"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "qbxLuaSidebar",
+          "title": "FiveM",
+          "icon": "images/sidebar.svg"
+        }
+      ]
+    },
+    "views": {
+      "qbxLuaSidebar": [
+        {
+          "id": "qbxLua.resourcesView",
+          "name": "%view.resourcesView.name%"
+        },
+        {
+          "id": "qbxLua.toolsView",
+          "name": "%view.toolsView.name%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "qbxLua.resourcesView",
+        "contents": "%view.resourcesView.welcome%"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "qbxLua.gettingStarted",
+        "title": "%walkthrough.gettingStarted.title%",
+        "description": "%walkthrough.gettingStarted.description%",
+        "steps": [
+          {
+            "id": "workspace",
+            "title": "%walkthrough.gettingStarted.workspace.title%",
+            "description": "%walkthrough.gettingStarted.workspace.description%",
+            "media": {
+              "markdown": "walkthrough/workspace.md"
+            },
+            "completionEvents": [
+              "onContext:workspaceFolderCount != 0"
+            ]
+          },
+          {
+            "id": "sidebar",
+            "title": "%walkthrough.gettingStarted.sidebar.title%",
+            "description": "%walkthrough.gettingStarted.sidebar.description%",
+            "media": {
+              "markdown": "walkthrough/sidebar.md"
+            },
+            "completionEvents": [
+              "onView:qbxLua.toolsView"
+            ]
+          },
+          {
+            "id": "viewers",
+            "title": "%walkthrough.gettingStarted.viewers.title%",
+            "description": "%walkthrough.gettingStarted.viewers.description%",
+            "media": {
+              "markdown": "walkthrough/viewers.md"
+            },
+            "completionEvents": [
+              "onCommand:qbxLua.openMapViewer",
+              "onCommand:qbxLua.openModelViewer",
+              "onCommand:qbxLua.openAnimViewer",
+              "onCommand:qbxLua.openTextureViewer"
+            ]
+          },
+          {
+            "id": "connection",
+            "title": "%walkthrough.gettingStarted.connection.title%",
+            "description": "%walkthrough.gettingStarted.connection.description%",
+            "media": {
+              "markdown": "walkthrough/connection.md"
+            },
+            "completionEvents": [
+              "onCommand:qbxLua.resources.configureConnection"
+            ]
+          },
+          {
+            "id": "reference",
+            "title": "%walkthrough.gettingStarted.reference.title%",
+            "description": "%walkthrough.gettingStarted.reference.description%",
+            "media": {
+              "markdown": "walkthrough/reference.md"
+            },
+            "completionEvents": [
+              "onCommand:qbxLua.openReference"
+            ]
+          }
+        ]
+      }
     ]
   },
   "scripts": {
@@ -722,6 +1182,8 @@
     "typecheck": "tsc --noEmit",
     "server": "node scripts/copy-server.mjs",
     "test": "npm run build && node scripts/run-tests.mjs",
+    "test:unit": "node scripts/run-tests.mjs --unit",
+    "test:host": "npm run build && node scripts/run-tests.mjs --host",
     "package": "npm run typecheck && npm run build -- --production && vsce package --no-dependencies",
     "vscode:prepublish": "npm run build -- --production"
   },
