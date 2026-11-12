@@ -49,11 +49,19 @@ stopped language server produces an actionable error; restart it and retry.
 
 ## Other assistants: portable MCP
 
-The packaged extension includes `dist/assistantMcp.js`. Configure an MCP client to
-launch this file with Node.js 18 or later (Node.js 22 is recommended). The extension
+The packaged extension includes `dist/assistantMcp.js`, which an MCP client
+launches with Node.js 18 or later (Node.js 22 is recommended). The extension
 does not install Node or change any client's configuration.
 
-A typical MCP server entry is:
+The quickest setup is **FiveM: Copy MCP Configuration**. Choose the format of
+your assistant (an `mcpServers` entry, VS Code's `mcp.json`, or a `claude mcp
+add` command) and paste what it copies. The configuration names the folders
+that are open and a launcher script in the extension's global storage. That
+path does not change when the extension updates: each start of the extension
+points the launcher at the installed version. After an update, open VS Code
+once before the assistant starts the server again.
+
+To configure a client by hand, a typical MCP server entry is:
 
 ```json
 {
@@ -69,7 +77,8 @@ A typical MCP server entry is:
 Put that entry in the server configuration location documented by your MCP
 client. On Windows use absolute Windows paths, with backslashes escaped in JSON.
 The extension directory includes a version/platform suffix in normal VS Code
-installations, so update the configured path after extension upgrades if needed.
+installations, so a path entered by hand has to be updated after extension
+upgrades; the copied configuration avoids that.
 Repeat `--workspace` for additional folders, up to 16. Relative roots, network
 file URIs and unrecognized command-line flags are rejected. Use the extension
 package built for the host platform so its bundled language server is present.
