@@ -73,10 +73,17 @@ export class SnippetBrowser implements vscode.Disposable {
         }
         const luaColumn = this.tracker.capture()?.viewColumn;
         const column = luaColumn !== undefined ? Math.min(luaColumn + 1, vscode.ViewColumn.Nine) : vscode.ViewColumn.Beside;
-        const panel = vscode.window.createWebviewPanel('qbxLua.snippets', 'FiveM Snippets', column, {
-            enableScripts: true, enableCommandUris: false,
-            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')], retainContextWhenHidden: false,
-        });
+        this.attach(vscode.window.createWebviewPanel('qbxLua.snippets', 'FiveM Snippets', column, { retainContextWhenHidden: false }));
+    }
+
+    /** Takes over a tab that VS Code restored after a window reload. */
+    restore(panel: vscode.WebviewPanel): void {
+        if (this.disposed || this.panel) { panel.dispose(); return; }
+        this.attach(panel);
+    }
+
+    private attach(panel: vscode.WebviewPanel): void {
+        panel.webview.options = { enableScripts: true, enableCommandUris: false, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')] };
         this.panel = panel;
         const session = new SnippetSession<LuaInsertionTarget>(() => this.loadCatalog(), (message) => {
             if (this.panel === panel) { void panel.webview.postMessage(message); }

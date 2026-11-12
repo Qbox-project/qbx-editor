@@ -7,6 +7,8 @@ import type { ResourceIndex } from './resources';
 import { openResourceSource } from './resourceNavigation';
 export { openResourceSource } from './resourceNavigation';
 
+const DETAILS_RESOURCE_KEY = 'qbxLua.resourceDetails.resource';
+
 /** A reusable, read-only panel; its code is loaded only after the details command is invoked. */
 export class ResourceDetailsBrowser implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
@@ -22,10 +24,21 @@ export class ResourceDetailsBrowser implements vscode.Disposable {
     async show(uri: string): Promise<void> {
         if (this.disposed) { return; }
         if (!this.panel) {
-            const panel = vscode.window.createWebviewPanel('qbxLua.resourceDetails', 'Resource Details', vscode.ViewColumn.Beside, {
-                enableScripts: true, enableCommandUris: false, retainContextWhenHidden: false,
-                localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
-            });
+            this.attach(vscode.window.createWebviewPanel('qbxLua.resourceDetails', 'Resource Details', vscode.ViewColumn.Beside, { retainContextWhenHidden: false }));
+        } else { this.panel.reveal(this.panel.viewColumn); }
+        await this.session?.show(uri);
+    }
+
+    /** Takes over a tab that VS Code restored after a window reload. */
+    async restore(panel: vscode.WebviewPanel, uri: string): Promise<void> {
+        if (this.disposed || this.panel) { panel.dispose(); return; }
+        this.attach(panel);
+        await this.session?.show(uri);
+    }
+
+    private attach(panel: vscode.WebviewPanel): void {
+        {
+            panel.webview.options = { enableScripts: true, enableCommandUris: false, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')] };
             this.panel = panel;
             const session = new ResourceDetailsSession(this.request, (message) => {
                 if (this.panel !== panel) { return; }
@@ -43,8 +56,7 @@ export class ResourceDetailsBrowser implements vscode.Disposable {
             ];
             const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'resourceDetailsWebview.js'));
             panel.webview.html = getResourceDetailsHtml(script.toString(), randomBytes(16).toString('hex'));
-        } else { this.panel.reveal(this.panel.viewColumn); }
-        await this.session?.show(uri);
+        }
     }
 
     dispose(): void { this.disposed = true; this.session?.dispose(); this.panel?.dispose(); }
@@ -58,8 +70,17 @@ export class ResourceDetailsController implements vscode.Disposable {
     private choosing = false;
     private choiceCancellation: vscode.CancellationTokenSource | undefined;
 
-    constructor(extensionUri: vscode.Uri, request: ResourceDetailsRequest, private readonly index: ResourceIndex) {
+    constructor(extensionUri: vscode.Uri, request: ResourceDetailsRequest, private readonly index: ResourceIndex, private readonly memento?: vscode.Memento) {
         this.browser = new ResourceDetailsBrowser(extensionUri, request, () => this.chooseResource());
+    }
+
+    /** Takes over a tab that VS Code restored after a window reload, for the resource it showed. */
+    async restore(panel: vscode.WebviewPanel): Promise<void> {
+        await this.index.ready;
+        const saved = this.memento?.get<unknown>(DETAILS_RESOURCE_KEY);
+        const resource = typeof saved === 'string' ? await this.index.resolve(vscode.Uri.parse(saved)) : undefined;
+        if (this.disposed || !resource) { panel.dispose(); return; }
+        await this.browser.restore(panel, resource.folder.toString());
     }
 
     async show(value?: unknown): Promise<void> {
@@ -79,7 +100,10 @@ export class ResourceDetailsController implements vscode.Disposable {
                 }
                 uri = resource.folder.toString();
             } else { uri = await this.chooseResource(); }
-            if (uri && !this.disposed && generation === this.generation) { await this.browser.show(uri); }
+            if (uri && !this.disposed && generation === this.generation) {
+                void this.memento?.update(DETAILS_RESOURCE_KEY, uri);
+                await this.browser.show(uri);
+            }
         } catch (error) {
             if (!this.disposed && generation === this.generation) {
                 void vscode.window.showErrorMessage(`Resource Details: ${error instanceof Error ? error.message : String(error)}`);

@@ -106,12 +106,20 @@ export class ReferenceBrowser implements vscode.Disposable {
         }
         const luaColumn = this.tracker.capture()?.viewColumn;
         const column = luaColumn !== undefined ? Math.min(luaColumn + 1, vscode.ViewColumn.Nine) : vscode.ViewColumn.Beside;
-        const panel = vscode.window.createWebviewPanel('qbxLua.reference', 'FiveM Reference', column, {
-            enableScripts: true,
-            enableCommandUris: false,
-            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
-            retainContextWhenHidden: false,
-        });
+        this.attach(vscode.window.createWebviewPanel('qbxLua.reference', 'FiveM Reference', column, { retainContextWhenHidden: false }));
+    }
+
+    /** Takes over a tab that VS Code restored after a window reload. */
+    restore(panel: vscode.WebviewPanel): void {
+        if (this.disposed || this.panel) {
+            panel.dispose();
+            return;
+        }
+        this.attach(panel);
+    }
+
+    private attach(panel: vscode.WebviewPanel): void {
+        panel.webview.options = { enableScripts: true, enableCommandUris: false, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')] };
         this.panel = panel;
         const session = new ReferenceSession<LuaInsertionTarget>(this.request, (message) => {
             if (this.panel === panel) {

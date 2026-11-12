@@ -19,7 +19,7 @@ export function getNuiHtml(scriptUri: string, nonce: string, frameOrigin?: strin
     const origin = localFrameOrigin(frameOrigin);
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${safeNonce}'; style-src 'nonce-${safeNonce}'; frame-src ${origin || "'none'"}; img-src 'none'; connect-src 'none'; font-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${safeNonce}'; style-src 'nonce-${safeNonce}'; frame-src ${origin || "'none'"}; img-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none';">
 <title>FiveM NUI Preview</title><style nonce="${safeNonce}">
 ${browserStyles}
 textarea { box-sizing:border-box; width:100%; resize:vertical; min-height:115px; padding:9px 10px; border:1px solid var(--vscode-input-border,transparent); border-radius:3px; color:var(--vscode-input-foreground,#eee); background:var(--vscode-input-background,#313131); font:12px/1.5 var(--vscode-editor-font-family,monospace); tab-size:2; }

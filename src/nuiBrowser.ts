@@ -12,6 +12,7 @@ import type { ResourceLocation } from './resourceDetailsTypes';
 import type { NuiMessage, NuiRequest, NuiView } from './nuiTypes';
 
 type PreviewServer = Awaited<ReturnType<typeof createNuiPreviewServer>>;
+const NUI_RESOURCE_KEY = 'qbxLua.nuiPreview.resource';
 function sameFile(a: vscode.Uri, b: vscode.Uri): boolean {
     const clean = (uri: vscode.Uri) => process.platform === 'win32' ? path.resolve(uri.fsPath).toLowerCase() : path.resolve(uri.fsPath);
     return a.scheme === 'file' && b.scheme === 'file' && clean(a) === clean(b);
@@ -39,7 +40,7 @@ export class NuiController implements vscode.Disposable {
     /** Signals that the isolated preview bridge actually loaded, for editor integration clients. */
     readonly onDidPreviewReady = this.readyEmitter.event;
 
-    constructor(private readonly extensionUri: vscode.Uri, workspaceState: vscode.Memento,
+    constructor(private readonly extensionUri: vscode.Uri, private readonly workspaceState: vscode.Memento,
         private readonly request: NuiRequest, private readonly index: ResourceIndex,
         private readonly createServer: typeof createNuiPreviewServer = createNuiPreviewServer) {
         this.store = new NuiPresetStore(workspaceState);
@@ -71,12 +72,22 @@ export class NuiController implements vscode.Disposable {
         } catch (error) { this.report(error); }
     }
 
+    /** Takes over a tab that VS Code restored after a window reload, for the resource it previewed. */
+    async restore(panel: vscode.WebviewPanel): Promise<void> {
+        await this.index.ready;
+        const saved = this.workspaceState.get<unknown>(NUI_RESOURCE_KEY);
+        const resource = typeof saved === 'string' ? await this.index.resolve(vscode.Uri.parse(saved)) : undefined;
+        if (this.disposed || this.panel || !resource || !vscode.workspace.isTrusted) { panel.dispose(); return; }
+        this.attach(panel);
+        try { await this.load(resource); } catch (error) { this.report(error); }
+    }
+
     private ensurePanel(): void {
         if (this.panel) { this.panel.reveal(this.panel.viewColumn); return; }
-        const panel = vscode.window.createWebviewPanel('qbxLua.nuiPreview', 'FiveM NUI Preview', vscode.ViewColumn.Beside, {
-            enableScripts: true, enableCommandUris: false, enableForms: false, retainContextWhenHidden: false,
-            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
-        });
+        this.attach(vscode.window.createWebviewPanel('qbxLua.nuiPreview', 'FiveM NUI Preview', vscode.ViewColumn.Beside, { retainContextWhenHidden: false }));
+    }
+
+    private attach(panel: vscode.WebviewPanel): void {
         this.panel = panel;
         const subscriptions = [
             panel.webview.onDidReceiveMessage((message: unknown) => { void this.handle(message).catch((error) => this.report(error)); }),
@@ -102,6 +113,7 @@ export class NuiController implements vscode.Disposable {
         this.reset();
         const generation = this.generation;
         this.resource = resource;
+        void this.workspaceState.update(NUI_RESOURCE_KEY, resource.folder.toString());
         this.view = undefined;
         this.loading = true;
         this.html();
