@@ -2,7 +2,10 @@ import * as dgram from 'node:dgram';
 import { lookup } from 'node:dns';
 import { isIP } from 'node:net';
 
-export type ResourceAction = 'start' | 'stop' | 'restart';
+export type ResourceAction = 'start' | 'stop' | 'restart' | 'ensure';
+
+/** Makes the server scan its resource folders again, so `start` and `ensure` find a new resource. */
+export const REFRESH_COMMAND = 'refresh';
 
 export type RconErrorCode = 'invalid-input' | 'authentication' | 'timeout' | 'cancelled' | 'network' | 'response-too-large';
 
@@ -18,8 +21,10 @@ export interface RconCommandOptions {
     port: number;
     password: string;
     command: string;
-    /** Total DNS, connection and response collection window. Defaults to three seconds. */
+    /** Longest wait for DNS, the connection and the whole response. Defaults to three seconds. */
     timeoutMs?: number;
+    /** Silence after a reply that ends the response. Defaults to 250 milliseconds. */
+    quietMs?: number;
     signal?: AbortSignal;
 }
 
@@ -30,7 +35,7 @@ export function validateRconPassword(password: string): string | undefined {
 
 /** Build one exact resource operation. Categories, paths and console syntax are never accepted. */
 export function resourceCommand(action: ResourceAction, resourceName: string): string {
-    if (!['start', 'stop', 'restart'].includes(action)) {
+    if (!['start', 'stop', 'restart', 'ensure'].includes(action)) {
         throw new RconError('invalid-input', 'Unsupported resource action.');
     }
     if (!/^[A-Za-z0-9_.-]+$/.test(resourceName) || resourceName === '.' || resourceName === '..') {
@@ -48,14 +53,17 @@ const maxResponseBytes = 1024 * 1024;
  * does not remove quotation marks. Send the password verbatim without quotes.
  * https://github.com/citizenfx/fivem/blob/master/code/components/citizen-server-impl/include/outofbandhandlers/RconOutOfBand.h
  *
- * There is no request ID or end-of-response marker. Collect print packets for
- * a bounded window on a fresh, connected socket. A missing reply cannot tell
- * us whether the command ran, so never retry automatically. Replies are plain
- * server text; callers must redact secrets before displaying or logging them.
+ * There is no request ID or end-of-response marker. The server sends its print
+ * packets in one burst once the command has run, so the response ends after a
+ * short silence that follows a reply, on a fresh, connected socket. A missing
+ * reply cannot tell us whether the command ran, so never retry automatically.
+ * Replies are plain server text; callers must redact secrets before displaying
+ * or logging them.
  */
 export async function sendRconCommand(options: RconCommandOptions): Promise<string> {
     const { port, password, command, signal } = options;
     const timeoutMs = options.timeoutMs ?? 3000;
+    const quietMs = options.quietMs ?? Math.min(250, timeoutMs);
     const host = options.host.startsWith('[') && options.host.endsWith(']')
         ? options.host.slice(1, -1) : options.host;
     if (!host || /[\s\x00-\x1f\x7f/\\\[\]]/.test(host) || (host.includes(':') && isIP(host) !== 6)
@@ -75,6 +83,9 @@ export async function sendRconCommand(options: RconCommandOptions): Promise<stri
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) {
         throw new RconError('invalid-input', 'The RCON response timeout must be between 1 and 60000 milliseconds.');
     }
+    if (!Number.isInteger(quietMs) || quietMs < 1 || quietMs > timeoutMs) {
+        throw new RconError('invalid-input', 'The RCON silence window must be between 1 millisecond and the response timeout.');
+    }
     const packet = Buffer.concat([outOfBandPrefix, Buffer.from(`rcon ${password} ${command}`, 'utf8')]);
     if (packet.length > 65507) {
         throw new RconError('invalid-input', 'The RCON request is too large for a UDP packet.');
@@ -88,6 +99,8 @@ export async function sendRconCommand(options: RconCommandOptions): Promise<stri
         let settled = false;
         let received = false;
         let responseBytes = 0;
+        let packets = 0;
+        let quiet: ReturnType<typeof setTimeout> | undefined;
         const response: Buffer[] = [];
 
         const finish = (error?: RconError): void => {
@@ -96,6 +109,7 @@ export async function sendRconCommand(options: RconCommandOptions): Promise<stri
             }
             settled = true;
             clearTimeout(timer);
+            clearTimeout(quiet);
             signal?.removeEventListener('abort', cancel);
             if (socket) {
                 // A failed bind/connect can leave the socket already closed.
@@ -108,9 +122,19 @@ export async function sendRconCommand(options: RconCommandOptions): Promise<stri
             }
         };
         const cancel = (): void => finish(new RconError('cancelled', 'RCON request cancelled. If it was already sent, the command may still have run.'));
-        const timer = setTimeout(() => {
+        // A busy host runs an expired timer before the packets that already wait, so both deadlines
+        // let the socket deliver those first.
+        const timer = setTimeout(() => setImmediate(() => {
             finish(received ? undefined : new RconError('timeout', 'No RCON response arrived. The command may have run; it was not retried. Check the server address, UDP port, firewall and rcon_password.'));
-        }, timeoutMs);
+        }), timeoutMs);
+        const endAfterSilence = (): void => {
+            const seen = packets;
+            setImmediate(() => {
+                if (packets === seen) {
+                    finish();
+                }
+            });
+        };
         signal?.addEventListener('abort', cancel, { once: true });
 
         // FXServer listens on 0.0.0.0 by default, so a name such as localhost that resolves to
@@ -143,12 +167,15 @@ export async function sendRconCommand(options: RconCommandOptions): Promise<stri
                     return;
                 }
                 received = true;
+                packets++;
                 responseBytes += payload.length;
                 if (responseBytes > maxResponseBytes) {
                     finish(new RconError('response-too-large', 'The RCON response exceeded 1 MiB. Check the server console for the command result.'));
                     return;
                 }
                 response.push(payload);
+                clearTimeout(quiet);
+                quiet = setTimeout(endAfterSilence, quietMs);
             });
             // Resolve one address and use one peer. Failing over could run a command twice.
             socket.connect(port, address, () => {

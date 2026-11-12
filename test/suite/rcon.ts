@@ -33,6 +33,7 @@ export async function runRconTests(): Promise<void> {
     assert.equal(resourceCommand('start', 'qbx_core'), 'start qbx_core');
     assert.equal(resourceCommand('stop', 'my-resource.v2'), 'stop my-resource.v2');
     assert.equal(resourceCommand('restart', '_private'), 'restart _private');
+    assert.equal(resourceCommand('ensure', 'new_resource'), 'ensure new_resource');
     for (const name of ['', '.', '..', '[qbx]', '../qbx_core', 'qbx/core', 'qbx\\core', 'a b', 'a;quit', 'a\nquit', 'a\0', 'a"', '*']) {
         assert.throws(() => resourceCommand('stop', name), errorCode('invalid-input'), name);
     }
@@ -61,6 +62,23 @@ export async function runRconTests(): Promise<void> {
             assert.equal(await sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'echo test', timeoutMs: REPLY_MS }), 'fée');
         } finally {
             intruder.close();
+        }
+    });
+
+    await withServer(async (server, port) => {
+        let late: ReturnType<typeof setTimeout> | undefined;
+        server.on('message', (_packet, peer) => {
+            server.send(printPacket('Stopping resource garage\n'), peer.port, peer.address);
+            setTimeout(() => server.send(printPacket('Started resource garage\n'), peer.port, peer.address), 20);
+            late = setTimeout(() => server.send(printPacket('printed by a later tick\n'), peer.port, peer.address), 5000);
+        });
+        const started = Date.now();
+        try {
+            const result = await sendRconCommand({ host: '127.0.0.1', port, password: 'secret', command: 'restart garage', timeoutMs: 30000, quietMs: 300 });
+            assert.equal(result, 'Stopping resource garage\nStarted resource garage\n', 'the burst of a reply is one response; later output is not waited for');
+            assert.ok(Date.now() - started < 15000, 'a reply ends the wait long before the timeout');
+        } finally {
+            clearTimeout(late);
         }
     });
 
@@ -94,6 +112,7 @@ export async function runRconTests(): Promise<void> {
         { password: '' }, { password: 'with space' }, { password: 'with\nnewline' }, { password: 'with\0nul' },
         { command: 'start a\nquit' }, { command: 'start a; quit' }, { command: 'start a\0quit' },
         { host: 'https://localhost' }, { host: 'localhost:30120' }, { port: 0 }, { port: 65536 }, { timeoutMs: 0 },
+        { quietMs: 0 }, { timeoutMs: 100, quietMs: 101 },
     ]) {
         await assert.rejects(sendRconCommand({ host: '127.0.0.1', port: 30120, password: 'secret', command: 'echo test', ...invalid }), errorCode('invalid-input'));
     }

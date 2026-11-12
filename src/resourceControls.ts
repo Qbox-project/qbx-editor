@@ -2,10 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import * as vscode from 'vscode';
 import { Resource, ResourceIndex } from './resources';
-import { resourceCommand, RconError, sendRconCommand, validateRconPassword } from './rcon';
+import { REFRESH_COMMAND, resourceCommand, RconError, sendRconCommand, validateRconPassword, type ResourceAction } from './rcon';
 
 const CONNECTION_KEY = 'qbxLua.resources.connection';
 const SECRET_PREFIX = 'qbxLua.resources.password.';
+const ACTIONS: readonly ResourceAction[] = ['start', 'stop', 'restart', 'ensure'];
+/** A resource that builds its interface when it starts replies late. */
+const ACTION_TIMEOUT_MS = 10000;
 
 export interface ResourceConnection {
     id: string;
@@ -74,6 +77,11 @@ function endpoint(connection: ResourceConnection): string {
     return `${connection.host.includes(':') ? `[${connection.host}]` : connection.host}:${connection.port}`;
 }
 
+/** Whether the server answered that it has no resource of that name, as it does until a `refresh` finds a new one. */
+export function unknownResource(response: string): boolean {
+    return /couldn'?t find resource/i.test(response);
+}
+
 /** Also redact server output: a custom command handler could echo sensitive input. */
 export function redactResponse(text: string, password: string): string {
     const redacted = password ? text.split(password).join('[redacted]') : text;
@@ -81,42 +89,85 @@ export function redactResponse(text: string, password: string): string {
     return password ? clean.split(password).join('[redacted]') : clean;
 }
 
+/** The file of the active editor tab, also when a viewer of this extension shows it. */
+export function activeFile(): vscode.Uri | undefined {
+    const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+    if (input instanceof vscode.TabInputText || input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputNotebook) {
+        return input.uri;
+    }
+    return vscode.window.activeTextEditor?.document.uri;
+}
+
 export class ResourceControls implements vscode.Disposable {
     private readonly index: ResourceIndex;
     private readonly store: ResourceConnectionStore;
-    private readonly output = vscode.window.createOutputChannel('Qbox Lua Resources');
+    private channel: vscode.OutputChannel | undefined;
     private readonly subscriptions: vscode.Disposable[] = [];
     private operation: AbortController | undefined;
+    private lastUsed: string | undefined;
     private busy = false;
     private disposed = false;
 
     get resourceIndex(): ResourceIndex { return this.index; }
 
+    /** Created on first use, so the Output panel lists it only for people who control resources. */
+    private get output(): vscode.OutputChannel {
+        return this.channel ??= vscode.window.createOutputChannel('Qbox Lua Resources');
+    }
+
     constructor(context: vscode.ExtensionContext) {
         this.store = new ResourceConnectionStore(context);
         this.index = new ResourceIndex();
-        this.subscriptions.push(this.index, this.output, this.index.onDidChange(() => this.updateContext()));
-        for (const action of ['start', 'stop', 'restart'] as const) {
+        this.subscriptions.push(
+            this.index,
+            this.index.onDidChange(() => this.updateContext()),
+            vscode.window.tabGroups.onDidChangeTabs(() => this.updateActiveContext()),
+            vscode.window.onDidChangeActiveTextEditor(() => this.updateActiveContext()),
+        );
+        for (const action of ACTIONS) {
             this.subscriptions.push(vscode.commands.registerCommand(`qbxLua.resources.${action}`,
                 (uri?: vscode.Uri) => this.exclusive(() => this.runResource(action, uri))));
         }
         this.subscriptions.push(
+            vscode.commands.registerCommand('qbxLua.resources.refresh', () => this.exclusive(() => this.refreshServer())),
             vscode.commands.registerCommand('qbxLua.resources.openManifest', (uri?: vscode.Uri) => this.openManifest(uri)),
             vscode.commands.registerCommand('qbxLua.resources.configureConnection', () => this.exclusive(() => this.configure())),
             vscode.commands.registerCommand('qbxLua.resources.testConnection', () => this.exclusive(() => this.testConnection())),
             vscode.commands.registerCommand('qbxLua.resources.forgetConnection', () => this.exclusive(async () => {
                 await this.store.forget();
+                this.updateConnectionContext();
                 void vscode.window.showInformationMessage('Qbox Lua: the saved resource connection and password were removed.');
             })),
         );
+        this.updateConnectionContext();
         void this.index.ready.then(() => this.updateContext()).catch((error: unknown) => {
             this.output.appendLine(`Resource discovery failed: ${String(error)}`);
         });
     }
 
+    /** The resource that holds the file of the active editor tab. */
+    activeResource(): Resource | undefined {
+        const uri = activeFile();
+        return uri && this.index.containing(uri);
+    }
+
     private updateContext(): void {
         if (!this.disposed) {
             void vscode.commands.executeCommand('setContext', 'qbxLua.resourceFolders', this.index.entries.map((r) => r.folder.fsPath));
+            void vscode.commands.executeCommand('setContext', 'qbxLua.hasResources', this.index.entries.length > 0);
+            this.updateActiveContext();
+        }
+    }
+
+    private updateActiveContext(): void {
+        if (!this.disposed) {
+            void vscode.commands.executeCommand('setContext', 'qbxLua.activeResource', this.activeResource() !== undefined);
+        }
+    }
+
+    private updateConnectionContext(): void {
+        if (!this.disposed) {
+            void vscode.commands.executeCommand('setContext', 'qbxLua.resources.connected', this.store.get() !== undefined);
         }
     }
 
@@ -169,6 +220,7 @@ export class ResourceControls implements vscode.Disposable {
         if (password === undefined || this.disposed) { return undefined; }
         const address = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
         const saved = await this.store.save(address, Number(portText), password);
+        this.updateConnectionContext();
         void vscode.window.showInformationMessage(`FiveM resource connection saved for this workspace: ${endpoint(saved)}.`);
         return saved;
     }
@@ -186,14 +238,22 @@ export class ResourceControls implements vscode.Disposable {
         return password ? { profile, password } : undefined;
     }
 
+    /**
+     * The resource an explicit `uri` names or lies in, else the one that holds the file being
+     * edited, else one the user picks.
+     */
     private async selectResource(uri?: vscode.Uri): Promise<Resource | undefined> {
         await this.index.ready;
         if (uri) {
-            const resource = await this.index.resolve(uri);
+            const resource = await this.index.owner(uri);
             if (!resource) {
-                void vscode.window.showWarningMessage('Select a resource folder containing fxmanifest.lua or __resource.lua, or its manifest.');
+                void vscode.window.showWarningMessage('Select a resource folder containing fxmanifest.lua or __resource.lua, or a file in one.');
             }
             return resource;
+        }
+        const active = this.activeResource();
+        if (active) {
+            return this.index.resolve(active.folder);
         }
         const choices = this.index.entries.map((resource) => ({
             label: resource.name, description: vscode.workspace.asRelativePath(resource.folder, true), resource,
@@ -202,6 +262,8 @@ export class ResourceControls implements vscode.Disposable {
             void vscode.window.showInformationMessage('No FiveM resources were found in this workspace.');
             return undefined;
         }
+        // The resource used last leads the list, so a repeated action from a viewer or the terminal is one Enter away.
+        choices.sort((a, b) => Number(b.resource.folder.toString() === this.lastUsed) - Number(a.resource.folder.toString() === this.lastUsed));
         const picked = await vscode.window.showQuickPick(choices, {
             title: 'FiveM resource', placeHolder: 'Choose a resource', matchOnDescription: true,
         });
@@ -219,9 +281,10 @@ export class ResourceControls implements vscode.Disposable {
         }
     }
 
-    private async runResource(action: 'start' | 'stop' | 'restart', uri?: vscode.Uri): Promise<void> {
+    private async runResource(action: ResourceAction, uri?: vscode.Uri): Promise<void> {
         const resource = await this.selectResource(uri);
         if (!resource || this.disposed) { return; }
+        this.lastUsed = resource.folder.toString();
         const command = resourceCommand(action, resource.name);
         if (this.index.entries.filter((entry) => entry.name.toLowerCase() === resource.name.toLowerCase()).length > 1) {
             throw new Error(`Multiple workspace resources are named ${resource.name}. RCON addresses resources by name; resolve the duplicate before running this action.`);
@@ -236,7 +299,27 @@ export class ResourceControls implements vscode.Disposable {
         if (this.index.entries.filter((entry) => entry.name.toLowerCase() === resource.name.toLowerCase()).length > 1) {
             throw new Error(`Multiple workspace resources are named ${resource.name}. RCON addresses resources by name; resolve the duplicate before running this action.`);
         }
-        await this.send(connection, command);
+        const response = await this.send(connection, command, ACTION_TIMEOUT_MS);
+        if (action !== 'stop' && unknownResource(response) && !this.disposed) {
+            // Not awaited: the message stays until it is answered, and other actions must not wait for it.
+            void vscode.window.showWarningMessage(
+                `The server does not know ${resource.name} yet. A resource added while the server runs is found after a refresh.`, 'Refresh and Retry',
+            ).then((choice) => {
+                if (choice === 'Refresh and Retry') {
+                    void this.exclusive(async () => {
+                        await this.send(connection, REFRESH_COMMAND, ACTION_TIMEOUT_MS);
+                        await this.send(connection, command, ACTION_TIMEOUT_MS);
+                    });
+                }
+            });
+        }
+    }
+
+    private async refreshServer(): Promise<void> {
+        const connection = await this.connection();
+        if (connection && !this.disposed) {
+            await this.send(connection, REFRESH_COMMAND, ACTION_TIMEOUT_MS);
+        }
     }
 
     private async testConnection(): Promise<void> {
@@ -251,7 +334,7 @@ export class ResourceControls implements vscode.Disposable {
         }
     }
 
-    private async send(connection: { profile: ResourceConnection; password: string }, command: string): Promise<string> {
+    private async send(connection: { profile: ResourceConnection; password: string }, command: string, timeoutMs?: number): Promise<string> {
         if (!vscode.workspace.isTrusted || this.disposed) {
             throw new Error('Resource control is unavailable in this workspace.');
         }
@@ -268,7 +351,7 @@ export class ResourceControls implements vscode.Disposable {
                 const cancellation = token.onCancellationRequested(() => abort.abort());
                 try {
                     if (token.isCancellationRequested) { abort.abort(); }
-                    const response = await sendRconCommand({ ...connection.profile, password: connection.password, command, signal: abort.signal });
+                    const response = await sendRconCommand({ ...connection.profile, password: connection.password, command, timeoutMs, signal: abort.signal });
                     if (!this.disposed) {
                         this.output.appendLine(redactResponse(response, connection.password) || '(Server acknowledged the command without output.)');
                         this.output.appendLine('');
@@ -292,6 +375,9 @@ export class ResourceControls implements vscode.Disposable {
         this.disposed = true;
         this.operation?.abort();
         for (const disposable of this.subscriptions) { disposable.dispose(); }
+        this.channel?.dispose();
         void vscode.commands.executeCommand('setContext', 'qbxLua.resourceFolders', []);
+        void vscode.commands.executeCommand('setContext', 'qbxLua.hasResources', false);
+        void vscode.commands.executeCommand('setContext', 'qbxLua.activeResource', false);
     }
 }
