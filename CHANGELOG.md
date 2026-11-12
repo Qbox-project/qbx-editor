@@ -4,7 +4,7 @@ Notable changes to the Qbox Lua extension. Releases follow the version of the
 [qbx-lua](https://github.com/Qbox-project/qbx-lua) language server they bundle;
 its changes are in that repository's release notes.
 
-## Unreleased
+## 2.0.0
 
 ### Added
 
