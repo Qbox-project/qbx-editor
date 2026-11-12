@@ -9,7 +9,11 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 
-TARGETS = ("win32-x64", "linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64")
+TARGETS = (
+    "win32-x64", "win32-arm64", "linux-x64", "linux-arm64", "alpine-x64", "alpine-arm64", "darwin-x64", "darwin-arm64",
+)
+# Alpine Linux runs the static Linux server; VS Code there reports the platform as linux.
+SERVER_FOLDERS = {"alpine-x64": "linux-x64", "alpine-arm64": "linux-arm64"}
 
 
 def verify(root: Path, tag: str) -> None:
@@ -19,7 +23,7 @@ def verify(root: Path, tag: str) -> None:
     expected = {f"qbx-lua-{target}.vsix" for target in TARGETS}
     actual = {path.name for path in root.glob("*.vsix")}
     if actual != expected:
-        raise ValueError(f"Expected all five platform packages; missing={expected - actual}, unexpected={actual - expected}")
+        raise ValueError(f"Expected every platform package; missing={expected - actual}, unexpected={actual - expected}")
 
     checksums = {}
     for line in (root / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
@@ -51,7 +55,7 @@ def verify(root: Path, tag: str) -> None:
             ) != ("qbox", "qbx-lua", version, target):
                 raise ValueError(f"Wrong VSIX identity, version or target: {path.name}")
             binary = "qbx-lua-ls.exe" if target.startswith("win32-") else "qbx-lua-ls"
-            server = f"extension/server/{target}/{binary}"
+            server = f"extension/server/{SERVER_FOLDERS.get(target, target)}/{binary}"
             if server not in names or package.getinfo(server).file_size == 0:
                 raise ValueError(f"Missing bundled server: {path.name}")
         print(f"Verified {path.name} ({version})")

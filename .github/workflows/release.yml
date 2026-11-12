@@ -11,16 +11,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `alpine` packages the same static musl server a second time for Alpine Linux.
         include:
           - { os: windows-latest, rust: x86_64-pc-windows-msvc, vsce: win32-x64, bin: qbx-lua-ls.exe }
-          - { os: ubuntu-latest, rust: x86_64-unknown-linux-musl, vsce: linux-x64, bin: qbx-lua-ls }
-          - { os: ubuntu-24.04-arm, rust: aarch64-unknown-linux-musl, vsce: linux-arm64, bin: qbx-lua-ls }
+          - { os: windows-11-arm, rust: aarch64-pc-windows-msvc, vsce: win32-arm64, bin: qbx-lua-ls.exe }
+          - { os: ubuntu-latest, rust: x86_64-unknown-linux-musl, vsce: linux-x64, alpine: alpine-x64, bin: qbx-lua-ls }
+          - { os: ubuntu-24.04-arm, rust: aarch64-unknown-linux-musl, vsce: linux-arm64, alpine: alpine-arm64, bin: qbx-lua-ls }
           - { os: macos-latest, rust: aarch64-apple-darwin, vsce: darwin-arm64, bin: qbx-lua-ls }
           - { os: macos-15-intel, rust: x86_64-apple-darwin, vsce: darwin-x64, bin: qbx-lua-ls }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Qbox-project/qbx-lua
           ref: ${{ github.ref_name }}
@@ -45,7 +48,7 @@ jobs:
               exit 1
             fi
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -54,16 +57,34 @@ jobs:
       - run: npm ci
       - run: node scripts/copy-server.mjs deps/qbx-lua/target/${{ matrix.rust }}/release/${{ matrix.bin }}
       - run: npm run typecheck
+      - run: npm run build -- --production
+      # Every platform runs the suites that need no editor against the server it is about to ship.
+      - name: Test the bundled server
+        run: npm run test:unit
+      # One platform also runs the editor suite, against the tagged server rather than its main branch.
+      - name: Test in VS Code
+        if: matrix.vsce == 'linux-x64'
+        env:
+          QBX_TEST_WORKSPACE: ${{ github.workspace }}/deps/qbx-lua/crates/qbx_lua_ls/tests/fixtures/resources
+        run: xvfb-run -a node scripts/run-tests.mjs --host
       - run: npx vsce package --no-dependencies --target ${{ matrix.vsce }} --out qbx-lua-${{ matrix.vsce }}.vsix
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: vsix-${{ matrix.vsce }}
           path: qbx-lua-${{ matrix.vsce }}.vsix
           if-no-files-found: error
+      - if: matrix.alpine
+        run: npx vsce package --no-dependencies --target ${{ matrix.alpine }} --out qbx-lua-${{ matrix.alpine }}.vsix
+      - if: matrix.alpine
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vsix-${{ matrix.alpine }}
+          path: qbx-lua-${{ matrix.alpine }}.vsix
+          if-no-files-found: error
 
   publish:
     needs: package
-    uses: Qbox-project/.github/.github/workflows/release-artifacts.yml@main
+    uses: Qbox-project/.github/.github/workflows/release-artifacts.yml@49e3af0f5e0173b27cdd3475f317bf7835c02af9 # main
     with:
       artifact-pattern: vsix-*
     secrets: inherit
@@ -80,6 +101,7 @@ jobs:
     name: Publish Open VSX
     needs: publish
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: openvsx
     permissions:
       contents: read
@@ -87,7 +109,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
@@ -110,10 +132,10 @@ jobs:
           gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
             --pattern '*.vsix' --pattern SHA256SUMS --dir "${ASSET_DIR}"
 
-      - name: Verify all five platform packages
+      - name: Verify every platform package
         run: python3 scripts/verify-marketplace.py "${ASSET_DIR}" "${RELEASE_TAG}"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -124,7 +146,7 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           set -euo pipefail
-          for target in win32-x64 linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+          for target in win32-x64 win32-arm64 linux-x64 linux-arm64 alpine-x64 alpine-arm64 darwin-x64 darwin-arm64; do
             npx --yes ovsx@1.2.0 publish "${ASSET_DIR}/qbx-lua-${target}.vsix" \
               --target "${target}" --skip-duplicate
           done
@@ -133,4 +155,4 @@ jobs:
         shell: bash
         run: |
           printf 'Published release **%s** to [Open VSX](https://open-vsx.org/extension/qbox/qbx-lua).\n\n' "${RELEASE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
-          printf 'Platforms: Windows x64, Linux x64/ARM64, macOS x64/ARM64. Existing platform versions were skipped.\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf 'Platforms: Windows x64/ARM64, Linux x64/ARM64, Alpine Linux x64/ARM64, macOS x64/ARM64. Existing platform versions were skipped.\n' >> "${GITHUB_STEP_SUMMARY}"

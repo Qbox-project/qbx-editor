@@ -33,7 +33,7 @@ class ReleasePackagesTest(unittest.TestCase):
             ))
             if server:
                 binary = "qbx-lua-ls.exe" if target.startswith("win32-") else "qbx-lua-ls"
-                archive.writestr(f"extension/server/{target}/{binary}", b"test server")
+                archive.writestr(f"extension/server/{verifier.SERVER_FOLDERS.get(target, target)}/{binary}", b"test server")
         return path
 
     def checksums(self):
@@ -48,8 +48,14 @@ class ReleasePackagesTest(unittest.TestCase):
 
     def test_missing_platform(self):
         (self.root / "qbx-lua-linux-arm64.vsix").unlink()
-        with self.assertRaisesRegex(ValueError, "all five"):
+        with self.assertRaisesRegex(ValueError, "every platform"):
             verifier.verify(self.root, "v1.0.1")
+
+    def test_alpine_package_holds_the_linux_server(self):
+        with zipfile.ZipFile(self.root / "qbx-lua-alpine-arm64.vsix") as package:
+            self.assertIn("extension/server/linux-arm64/qbx-lua-ls", package.namelist())
+        with zipfile.ZipFile(self.root / "qbx-lua-win32-arm64.vsix") as package:
+            self.assertIn("extension/server/win32-arm64/qbx-lua-ls.exe", package.namelist())
 
     def test_extra_universal_package(self):
         (self.root / "qbx-lua.vsix").write_bytes(b"unexpected")

@@ -29,6 +29,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: marketplace
     permissions:
       contents: read
@@ -36,7 +37,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ inputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
@@ -67,11 +68,11 @@ jobs:
           gh release download "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" \
             --pattern '*.vsix' --pattern SHA256SUMS --dir "${ASSET_DIR}"
 
-      - name: Verify all five platform packages
+      - name: Verify every platform package
         if: ${{ !inputs.identity_only }}
         run: python3 scripts/verify-marketplace.py "${ASSET_DIR}" "${RELEASE_TAG}"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: ${{ !inputs.identity_only }}
         with:
           node-version: 22
@@ -80,7 +81,7 @@ jobs:
         if: ${{ !inputs.identity_only }}
 
       - name: Sign in to Microsoft Entra with GitHub OIDC
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3
         with:
           client-id: ${{ vars.VSCE_AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.VSCE_AZURE_TENANT_ID }}
@@ -105,4 +106,4 @@ jobs:
         shell: bash
         run: |
           printf 'Published release **%s** to [Qbox Lua](https://marketplace.visualstudio.com/items?itemName=Qbox.qbx-lua).\n\n' "${RELEASE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
-          printf 'Platforms: Windows x64, Linux x64/ARM64, macOS x64/ARM64. Existing platform versions were skipped.\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf 'Platforms: Windows x64/ARM64, Linux x64/ARM64, Alpine Linux x64/ARM64, macOS x64/ARM64. Existing platform versions were skipped.\n' >> "${GITHUB_STEP_SUMMARY}"
