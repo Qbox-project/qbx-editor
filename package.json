@@ -1194,7 +1194,7 @@
     "@bis-toolkit/bcn": "1.0.2",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
-    "@vscode/test-electron": "^2.4.1",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.2.1",
     "esbuild": "^0.24.0",
     "jsonc-parser": "3.3.1",
