@@ -84,6 +84,10 @@ const tests: Test[] = [
 ];
 
 export async function runHoverLevelTests(): Promise<void> {
+    if (!verboseHoverClass()) {
+        console.log('  skip hover levels: this VS Code has no hover buttons, and the extension leaves hovers to the language client');
+        return;
+    }
     const failures: string[] = [];
     for (const [name, body] of tests) {
         try {

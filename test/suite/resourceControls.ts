@@ -196,12 +196,13 @@ const tests: Test[] = [
         };
         const menus = manifest.contributes.menus['explorer/context'];
         assert.ok(Array.isArray(menus));
-        const resourceMenu = menus.find((item) => item.submenu === 'qbxLua.resources');
-        assert.ok(resourceMenu, 'FiveM resource actions should be grouped in an Explorer submenu');
-        assert.ok(resourceMenu.when?.includes('resourceScheme == file'));
-        assert.ok(resourceMenu.when?.includes('explorerResourceIsFolder'));
-        assert.ok(resourceMenu.when?.includes('resourcePath in qbxLua.resourceFolders'));
-        assert.ok(!resourceMenu.when?.includes('||'), 'unrelated folders must not bypass the resource match');
+        const resourceMenus = menus.filter((item) => item.submenu === 'qbxLua.resources');
+        assert.equal(resourceMenus.length, 1, 'VS Code keeps only the first contribution of a submenu to a menu');
+        assert.equal(
+            resourceMenus[0].when,
+            'resourceScheme == file && (explorerResourceIsFolder && resourcePath in qbxLua.resourceFolders || resourceFilename =~ /^(fxmanifest|__resource)\\.lua$/)',
+            'only recognized resource folders and manifest files show the resource actions',
+        );
         const actions = manifest.contributes.menus['qbxLua.resources'];
         assert.ok(Array.isArray(actions));
         for (const suffix of ['start', 'stop', 'restart', 'openManifest']) {

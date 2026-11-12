@@ -258,7 +258,7 @@ async function packagedProcess(): Promise<void> {
 }
 
 async function editorApi(): Promise<void> {
-    const vscode = await import('vscode');
+    const vscode = require('vscode') as typeof import('vscode');
     const extension = vscode.extensions.getExtension<AssistantApi>('qbox.qbx-lua'); assert.ok(extension);
     const api = await extension.activate(); assert.equal(api.version, 1); assert.equal(api.tools.length, 7);
     const definitions = extension.packageJSON.contributes.languageModelTools as { name: string; inputSchema: unknown }[];

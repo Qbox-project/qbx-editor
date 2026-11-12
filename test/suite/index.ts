@@ -1,7 +1,6 @@
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { runRconTests } from './rcon';
 import { runResourceTests } from './resources';
 import { runResourceControlTests } from './resourceControls';
 import { runReferenceBrowserTests } from './referenceBrowser';
@@ -9,18 +8,17 @@ import { runSnippetTests } from './snippets';
 import { runResourceWizardTests } from './resourceWizard';
 import { runResourceDetailsTests } from './resourceDetails';
 import { runRuntimeToolsTests } from './runtimeTools';
-import { runRuntimeLogCoreTests } from './runtimeLogCore';
 import { runNuiToolsTests } from './nuiTools';
-import { runNuiPreviewServerTests } from './nuiPreviewServer';
 import { runLuaUtilitiesTests } from './luaUtilities';
 import { runAssistantToolsTests } from './assistantTools';
-import { runAssetTests } from './assets';
 import { runAssetHostTests } from './assetsHost';
+import { runViewerHostTests } from './viewersHost';
 import { runSettingsSchemaTests } from './settingsSchema';
 import { runHoverLevelTests } from './hoverLevels';
 import { runSqlHighlightingTests } from './sqlHighlighting';
+import { runEditorToolTests } from './editorTools';
 
-type Test = [name: string, body: () => Promise<void>];
+import { runTests, type Test } from './runner';
 
 function workspaceFile(relative: string): vscode.Uri {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -55,8 +53,8 @@ function hoverText(hovers: vscode.Hover[]): string {
         .join('\n');
 }
 
+/** The suites that need no editor run under `node --test`; see `test/unit.ts`. */
 const tests: Test[] = [
-    ['RCON transport uses exact targets and bounded authenticated responses', runRconTests],
     ['resource discovery follows folders and manifest lifecycle', runResourceTests],
     ['resource connection storage and Explorer integration', runResourceControlTests],
     ['reference browser search, actions and editor integration', runReferenceBrowserTests],
@@ -64,16 +62,15 @@ const tests: Test[] = [
     ['resource wizard templates, creation and cancellation', runResourceWizardTests],
     ['resource details snapshots, navigation and editor integration', runResourceDetailsTests],
     ['runtime logs and workspace health editor integration', runRuntimeToolsTests],
-    ['runtime log following, bounds and trace parsing', runRuntimeLogCoreTests],
     ['NUI presets, resource lifecycle and real editor preview', runNuiToolsTests],
-    ['NUI local asset serving, isolation and lifetime', runNuiPreviewServerTests],
     ['Lua utility calculations, conversion and editor insertion', runLuaUtilitiesTests],
-    ['Structured assistant tools, portable MCP and editor API', runAssistantToolsTests],
-    ['Asset formats, texture decoding and bounded inventory', runAssetTests],
+    ['Structured assistant tools and editor API', () => runAssistantToolsTests({ packaged: false })],
     ['Asset browser resource lifecycle and real editor rendering', runAssetHostTests],
+    ['Map and model viewers in real editor tabs', runViewerHostTests],
     ['settings.json suggests and checks the rules of the running server', runSettingsSchemaTests],
     ['hover levels follow the buttons, the default level and the remembered one', runHoverLevelTests],
     ['SQL highlighting of database calls, marked strings and query functions', runSqlHighlightingTests],
+    ['palette and menus, the tool list, MCP setup, restored tabs, reports and server.cfg', runEditorToolTests],
     [
         'activates and answers status requests',
         async () => {
@@ -138,7 +135,8 @@ const tests: Test[] = [
             const garage = hovers.filter((hover) => hoverText([hover]).includes('local garage'));
             assert.equal(garage.length, 1, 'only the hover with buttons should answer, not the one of the language client');
             const [hover] = garage as (vscode.Hover & { canIncreaseVerbosity?: boolean; canDecreaseVerbosity?: boolean })[];
-            assert.deepEqual([hover.canIncreaseVerbosity, hover.canDecreaseVerbosity], [true, true]);
+            // VS Code versions before hover buttons show the same hover without them.
+            assert.deepEqual([hover.canIncreaseVerbosity, hover.canDecreaseVerbosity], 'VerboseHover' in vscode ? [true, true] : [undefined, undefined]);
         },
     ],
     [
@@ -580,29 +578,44 @@ function AwaitEditorProbe(name, ...) end
         },
     ],
     [
-        'manifest snippets write strings in the quote of the document',
+        'manifest snippets write strings in the quote of the document, in manifests only',
         async () => {
-            const document = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
-            const editor = await vscode.window.showTextDocument(document);
-            const original = document.getText();
-            const manifestSnippet = async (text: string): Promise<string> => {
+            const fs = await import('node:fs/promises');
+            const os = await import('node:os');
+            const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'qbx-manifest-snippet-'));
+            const snippetLabels = async (document: vscode.TextDocument, text: string): Promise<Map<string, vscode.CompletionItem>> => {
+                const editor = await vscode.window.showTextDocument(document);
                 const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
                 await editor.edit((edit) => edit.replace(whole, text));
                 const list = await vscode.commands.executeCommand<vscode.CompletionList>(
                     'vscode.executeCompletionItemProvider', document.uri, document.positionAt(text.length),
                 );
-                const item = list.items.find((item) => item.kind === vscode.CompletionItemKind.Snippet
-                    && (typeof item.label === 'string' ? item.label : item.label.label) === 'fxmanifest');
-                assert.ok(item?.insertText instanceof vscode.SnippetString, `no fxmanifest snippet in ${list.items.length} items`);
-                return item.insertText.value;
+                return new Map(list.items.filter((item) => item.kind === vscode.CompletionItemKind.Snippet)
+                    .map((item) => [typeof item.label === 'string' ? item.label : item.label.label, item]));
             };
+            const script = await vscode.workspace.openTextDocument(workspaceFile('myresource/client/main.lua'));
+            const original = script.getText();
             try {
-                assert.match(await manifestSnippet("local label = 'x'\nfxmanif"), /^fx_version 'cerulean'$/m);
-                assert.match(await manifestSnippet('local label = "x"\nfxmanif'), /^fx_version "cerulean"$/m);
+                await fs.writeFile(path.join(folder, 'fxmanifest.lua'), '');
+                const manifest = await vscode.workspace.openTextDocument(path.join(folder, 'fxmanifest.lua'));
+                const body = async (text: string): Promise<string> => {
+                    const item = (await snippetLabels(manifest, text)).get('fxmanifest');
+                    assert.ok(item?.insertText instanceof vscode.SnippetString, 'a manifest offers the fxmanifest snippet');
+                    return item.insertText.value;
+                };
+                assert.match(await body("local label = 'x'\nfxmanif"), /^fx_version 'cerulean'$/m);
+                assert.match(await body('local label = "x"\nfxmanif'), /^fx_version "cerulean"$/m);
+                await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+
+                assert.ok(!(await snippetLabels(script, `${original}\nfxmanif`)).has('fxmanifest'), 'a script is not offered a whole manifest');
+                assert.ok(!(await snippetLabels(script, `${original}\nman`)).has('manifest'), 'nor under the manifest prefix');
+                assert.ok((await snippetLabels(script, `${original}\nqbxconf`)).has('qbxconfig'), 'a script is still offered the config module');
             } finally {
-                const whole = new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length));
+                const editor = await vscode.window.showTextDocument(script);
+                const whole = new vscode.Range(new vscode.Position(0, 0), script.positionAt(script.getText().length));
                 await editor.edit((edit) => edit.replace(whole, original));
-                await document.save();
+                await script.save();
+                await fs.rm(folder, { recursive: true, force: true });
             }
         },
     ],
@@ -668,7 +681,9 @@ function AwaitEditorProbe(name, ...) end
                 await fs.rm(folder.fsPath, { recursive: true, force: true });
             }
             await waitFor('the removed resource to leave the server index', async () => ((await listed()) === 0 ? true : undefined), 30000);
-            assert.equal(vscode.languages.getDiagnostics(script).length, 0, 'diagnostics of the removed script are cleared');
+            // The index can drop the resource while the script is still on disk or its problems are
+            // still being withdrawn, so they are waited for rather than expected at once.
+            await waitFor('the diagnostics of the removed script to clear', () => (vscode.languages.getDiagnostics(script).length === 0 ? true : undefined), 30000);
         },
     ],
     [
@@ -689,17 +704,5 @@ function AwaitEditorProbe(name, ...) end
 ];
 
 export async function run(): Promise<void> {
-    const failures: string[] = [];
-    for (const [name, body] of tests) {
-        try {
-            await body();
-            console.log(`  ok   ${name}`);
-        } catch (error) {
-            failures.push(name);
-            console.error(`  FAIL ${name}\n${error instanceof Error ? error.stack : String(error)}`);
-        }
-    }
-    if (failures.length > 0) {
-        throw new Error(`${failures.length} test(s) failed: ${failures.join(', ')}`);
-    }
+    await runTests(tests);
 }

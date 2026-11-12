@@ -134,7 +134,7 @@ export async function runLuaUtilitiesCoreTests(): Promise<void> { await run(core
 
 export async function runLuaUtilitiesTests(): Promise<void> {
     await run(coreTests);
-    const vscode = await import('vscode');
+    const vscode = require('vscode') as typeof import('vscode');
     const { LuaEditorTargetTracker } = await import('../../src/referenceBrowser.js');
     const { LuaUtilitiesBrowser } = await import('../../src/luaUtilitiesBrowser.js');
     await run([
