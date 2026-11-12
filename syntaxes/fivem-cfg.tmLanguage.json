@@ -1,0 +1,70 @@
+{
+  "name": "FiveM Server Config",
+  "scopeName": "source.fivem-cfg",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#resource-command" },
+    { "include": "#set-command" },
+    { "include": "#access-command" },
+    { "include": "#command" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "(?:^|(?<=\\s))(#|//).*$",
+      "name": "comment.line.number-sign.fivem-cfg"
+    },
+    "resource-command": {
+      "begin": "(?:^|(?<=;))\\s*(ensure|start|stop|restart)(?=\\s)",
+      "beginCaptures": { "1": { "name": "keyword.control.fivem-cfg" } },
+      "end": "(?=;)|$",
+      "patterns": [
+        { "include": "#comment" },
+        { "match": "\\[[^\\]\\s]*\\]", "name": "entity.name.section.fivem-cfg" },
+        { "match": "[A-Za-z0-9_.-]+", "name": "entity.name.namespace.fivem-cfg" }
+      ]
+    },
+    "set-command": {
+      "begin": "(?:^|(?<=;))\\s*(set[sra]?)\\s+([^\\s;\"]+)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.fivem-cfg" },
+        "2": { "name": "variable.other.fivem-cfg" }
+      },
+      "end": "(?=;)|$",
+      "patterns": [{ "include": "#values" }]
+    },
+    "access-command": {
+      "begin": "(?:^|(?<=;))\\s*(add_ace|remove_ace|add_principal|remove_principal)(?=\\s)",
+      "beginCaptures": { "1": { "name": "support.function.fivem-cfg" } },
+      "end": "(?=;)|$",
+      "patterns": [
+        { "include": "#comment" },
+        { "match": "\\b(allow|deny)\\b", "name": "constant.language.fivem-cfg" },
+        { "match": "\\b(group|identifier|resource|command|builtin|player|system)(?=[.:])", "name": "storage.modifier.fivem-cfg" },
+        { "include": "#string" }
+      ]
+    },
+    "command": {
+      "begin": "(?:^|(?<=;))\\s*(exec|refresh|endpoint_add_tcp|endpoint_add_udp|load_server_icon)\\b|(?:^|(?<=;))\\s*([A-Za-z_][A-Za-z0-9_.:-]*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.fivem-cfg" },
+        "2": { "name": "variable.other.fivem-cfg" }
+      },
+      "end": "(?=;)|$",
+      "patterns": [{ "include": "#values" }]
+    },
+    "values": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#string" },
+        { "match": "(?<=\\s)(true|false|on|off|legacy|strict|relaxed|inactive)(?=\\s|;|$)", "name": "constant.language.fivem-cfg" },
+        { "match": "(?<=\\s)-?[0-9]+(?:\\.[0-9]+)?(?=\\s|;|$)", "name": "constant.numeric.fivem-cfg" }
+      ]
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"|$",
+      "name": "string.quoted.double.fivem-cfg",
+      "patterns": [{ "match": "\\\\.", "name": "constant.character.escape.fivem-cfg" }]
+    }
+  }
+}
