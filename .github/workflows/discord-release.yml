@@ -8,5 +8,5 @@ permissions:
 
 jobs:
   notify:
-    uses: Qbox-project/.github/.github/workflows/discord-release.yml@main
+    uses: Qbox-project/.github/.github/workflows/discord-release.yml@49e3af0f5e0173b27cdd3475f317bf7835c02af9 # main
     secrets: inherit

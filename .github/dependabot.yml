@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      development:
+        dependency-type: development
+    ignore:
+      # Follows engines.vscode in package.json, the oldest VS Code the extension supports.
+      - dependency-name: "@types/vscode"
+  # Workflows pin actions and reusable workflows by commit; this keeps the pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: cargo
+    directory: /integrations/zed
+    schedule:
+      interval: monthly
