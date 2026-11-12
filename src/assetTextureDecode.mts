@@ -2,9 +2,9 @@ import { decodeBC1, decodeBC2, decodeBC3, decodeBC4, decodeBC5, decodeBC7 } from
 import type { TextureEncoding } from './assetTypes.js';
 
 /** Validate independently at the browser boundary before the decoder can allocate RGBA memory. */
-export function decodeAssetTexture(data: Uint8Array, width: number, height: number, encoding: TextureEncoding): Uint8Array {
-    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width * height > 1024 * 1024) {
-        throw new Error('Texture preview dimensions exceed the one-megapixel limit.');
+export function decodeAssetTexture(data: Uint8Array, width: number, height: number, encoding: TextureEncoding, maxPixels = 1024 * 1024): Uint8Array {
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width * height > maxPixels) {
+        throw new Error(maxPixels === 1024 * 1024 ? 'Texture preview dimensions exceed the one-megapixel limit.' : 'This texture is too large to decode.');
     }
     const formats: TextureEncoding[] = ['BC1', 'BC2', 'BC3', 'BC4', 'BC5', 'BC7', 'RGBA8', 'BGRA8', 'BGRX8', 'R8', 'A8'];
     if (!formats.includes(encoding)) { throw new Error('Unsupported preview encoding.'); }
