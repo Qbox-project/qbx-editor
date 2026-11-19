@@ -68,7 +68,7 @@ jobs:
           QBX_TEST_WORKSPACE: ${{ github.workspace }}/deps/qbx-lua/crates/qbx_lua_ls/tests/fixtures/resources
         run: xvfb-run -a node scripts/run-tests.mjs --host
       - run: npx vsce package --no-dependencies --target ${{ matrix.vsce }} --out qbx-lua-${{ matrix.vsce }}.vsix
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vsix-${{ matrix.vsce }}
           path: qbx-lua-${{ matrix.vsce }}.vsix
@@ -76,7 +76,7 @@ jobs:
       - if: matrix.alpine
         run: npx vsce package --no-dependencies --target ${{ matrix.alpine }} --out qbx-lua-${{ matrix.alpine }}.vsix
       - if: matrix.alpine
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vsix-${{ matrix.alpine }}
           path: qbx-lua-${{ matrix.alpine }}.vsix
